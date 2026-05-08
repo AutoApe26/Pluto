@@ -220,10 +220,10 @@ export const CreatePostModal = ({ open, onClose, topics, onCreated, defaultTopic
             </div>
 
             <p className="mt-5 text-[11px] leading-relaxed text-zinc-500">
-              Posts vanish in 24h. No links, blocked illegal content,
-              hate/harassment, doxing, misinformation, content involving minors,
-              piracy, scams/wallet-drainers, terror promotion, sexual content,
-              and self-harm. Same content max 6h/24h.
+              Posts vanish in 24h. No links. Blocked: illegal content,
+              hate/harassment, doxxing, misinformation, content involving
+              minors, piracy, scams/wallet-drainers, terror promotion, sexual
+              content, and self-harm. Same content max 5×/24h.
             </p>
 
             <button

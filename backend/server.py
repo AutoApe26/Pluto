@@ -12,6 +12,7 @@ import asyncio
 from datetime import datetime, timezone, timedelta
 
 from bot_service import bot_loop, run_once
+from moderation import violation_for, normalized_for_dedup
 
 
 ROOT_DIR = Path(__file__).parent
@@ -167,6 +168,25 @@ async def create_post(payload: PostCreate):
     valid_slugs = {t["slug"] for t in TOPICS_SEED}
     if payload.topic not in valid_slugs:
         raise HTTPException(400, "Invalid topic")
+
+    content = payload.content.strip()
+
+    # Rule: no links, no blocked categories
+    reason = violation_for(content)
+    if reason:
+        raise HTTPException(400, reason)
+
+    # Rule: same content max 5x / 24h (per device)
+    one_day_ago = iso(now_utc() - timedelta(hours=24))
+    norm = normalized_for_dedup(content)
+    same_count = await db.posts.count_documents({
+        "device_id": payload.device_id,
+        "content_norm": norm,
+        "created_at": {"$gte": one_day_ago},
+    })
+    if same_count >= 5:
+        raise HTTPException(429, "Same content max 5×/24h.")
+
     # Spam protection: max 10 posts per device per hour
     one_hour_ago = iso(now_utc() - timedelta(hours=1))
     recent_count = await db.posts.count_documents({
@@ -175,11 +195,12 @@ async def create_post(payload: PostCreate):
     })
     if recent_count >= 10:
         raise HTTPException(429, "You're posting too fast. Try again later.")
+
     created = now_utc()
     expires = created + timedelta(hours=24)
     post = Post(
         id=str(uuid.uuid4()),
-        content=payload.content.strip(),
+        content=content,
         topic=payload.topic,
         image=payload.image,
         sudo_name=(payload.sudo_name or "").strip()[:24] or None,
@@ -187,7 +208,9 @@ async def create_post(payload: PostCreate):
         created_at=iso(created),
         expires_at=iso(expires),
     )
-    await db.posts.insert_one(post.model_dump())
+    doc = post.model_dump()
+    doc["content_norm"] = norm  # for dedup queries — not exposed in response
+    await db.posts.insert_one(doc)
     return post
 
 @api_router.delete("/posts/{post_id}")
@@ -278,6 +301,14 @@ async def upload_music(payload: MusicCreate):
     provider = payload.provider or detect_provider(payload.link_url)
     if not provider:
         raise HTTPException(400, "Only Spotify or YouTube links are supported.")
+
+    # Apply content rules to caption only (link is whitelisted spotify/youtube)
+    caption = (payload.caption or "").strip()
+    if caption:
+        reason = violation_for(caption)
+        if reason:
+            raise HTTPException(400, reason)
+
     one_hour_ago = iso(now_utc() - timedelta(hours=1))
     recent_count = await db.music_posts.count_documents({
         "device_id": payload.device_id,
@@ -445,6 +476,7 @@ async def startup():
     await db.posts.create_index("created_at")
     await db.posts.create_index("expires_at")
     await db.posts.create_index("topic")
+    await db.posts.create_index([("device_id", 1), ("content_norm", 1), ("created_at", -1)])
     await db.music_posts.create_index("created_at")
     await db.music_posts.create_index("expires_at")
     await db.music_reactions.create_index([("music_id", 1), ("device_id", 1)], unique=True)

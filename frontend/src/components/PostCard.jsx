@@ -159,10 +159,7 @@ export const PostCard = ({ post, index = 0 }) => {
       <div className="mt-4 flex items-center justify-between text-xs text-zinc-500">
         <span className="font-mono">
           {post.sudo_name ? (
-            <>
-              <span className="text-zinc-300">{post.sudo_name}</span>
-              <span className="text-zinc-600 ml-1">· anon</span>
-            </>
+            <span className="text-zinc-300">{post.sudo_name}</span>
           ) : (
             <>anon · {post.device_id.slice(-6)}</>
           )}

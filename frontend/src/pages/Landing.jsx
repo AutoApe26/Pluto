@@ -103,7 +103,14 @@ const highlightContent = (content, color) => {
   const picked = new Set(candidates.slice(0, 3).map((c) => c.idx));
   return words.map((w, idx) =>
     picked.has(idx) ? (
-      <span key={idx} style={{ color, textShadow: `0 0 12px ${color}55` }}>
+      <span
+        key={idx}
+        className="font-semibold"
+        style={{
+          color,
+          textShadow: `0 0 10px ${color}80, 0 0 22px ${color}40`,
+        }}
+      >
         {w}
       </span>
     ) : (
@@ -235,10 +242,6 @@ export const Landing = ({ onCreate }) => {
                         {p.sudo_name}
                       </span>
                     )}
-                    <span className="text-zinc-700">·</span>
-                    <span className="text-[10px] font-mono uppercase tracking-wider text-zinc-500">
-                      anon
-                    </span>
                   </div>
                   <div className="flex items-center gap-3">
                     {p.expires_at && (
@@ -250,9 +253,9 @@ export const Landing = ({ onCreate }) => {
                   </div>
                 </div>
 
-                {/* BIG topic name in monospace */}
+                {/* BIG topic name in monospace (-3px from previous) */}
                 <h3
-                  className="mt-3 font-mono uppercase tracking-tight text-3xl sm:text-5xl leading-none break-words"
+                  className="mt-3 font-mono uppercase tracking-tight text-[27px] sm:text-[45px] leading-none break-words"
                   style={{
                     color,
                     textShadow: `0 0 20px ${color}55, 0 0 40px ${color}22`,
@@ -261,9 +264,9 @@ export const Landing = ({ onCreate }) => {
                   #{label}
                 </h3>
 
-                {/* Smaller content with key-phrase highlights */}
+                {/* Smaller content with key-phrase highlights — bright readable lavender */}
                 <p className="mt-3 sm:mt-4 font-mono text-zinc-200 text-[13px] sm:text-sm leading-relaxed whitespace-pre-wrap break-words line-clamp-3">
-                  {highlightContent(p.content, "#B026FF")}
+                  {highlightContent(p.content, "#E6B8FF")}
                 </p>
 
                 {/* Hugs / Fugs strip */}
