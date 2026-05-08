@@ -190,45 +190,50 @@ body {
 @keyframes plutoBreath {
     0%,
     100% {
-        opacity: 0.55;
-        transform: translateX(-50%) scale(0.92);
+        opacity: 0.35;
+        transform: translateX(-50%) scale(0.78);
     }
     50% {
         opacity: 1;
-        transform: translateX(-50%) scale(1.08);
+        transform: translateX(-50%) scale(1.25);
     }
 }
 .pluto-breath {
-    animation: plutoBreath 3.6s ease-in-out infinite;
+    animation: plutoBreath 5.5s ease-in-out infinite;
 }
 
 @keyframes plutoOrbBreath {
     0%,
     100% {
-        filter: drop-shadow(0 6px 16px rgba(60, 180, 255, 0.25))
-            drop-shadow(0 0 14px rgba(176, 38, 255, 0.18));
+        filter: drop-shadow(0 4px 14px rgba(60, 180, 255, 0.18))
+            drop-shadow(0 0 10px rgba(176, 38, 255, 0.10));
+        transform: translateX(-50%) scale(0.96);
     }
     50% {
-        filter: drop-shadow(0 10px 30px rgba(60, 180, 255, 0.65))
-            drop-shadow(0 0 28px rgba(176, 38, 255, 0.45));
+        filter: drop-shadow(0 14px 48px rgba(60, 180, 255, 0.95))
+            drop-shadow(0 0 50px rgba(176, 38, 255, 0.75))
+            drop-shadow(0 0 80px rgba(0, 240, 255, 0.45));
+        transform: translateX(-50%) scale(1.05);
     }
 }
 .pluto-orb-breath {
-    animation: plutoOrbBreath 3.6s ease-in-out infinite;
+    animation: plutoOrbBreath 5.5s ease-in-out infinite;
 }
 
 @keyframes plutoLogoBreath {
     0%,
     100% {
-        filter: drop-shadow(0 0 4px rgba(60, 180, 255, 0.3));
+        filter: drop-shadow(0 0 3px rgba(60, 180, 255, 0.25));
+        transform: scale(0.95);
     }
     50% {
-        filter: drop-shadow(0 0 12px rgba(60, 180, 255, 0.8))
-            drop-shadow(0 0 6px rgba(176, 38, 255, 0.5));
+        filter: drop-shadow(0 0 18px rgba(60, 180, 255, 1))
+            drop-shadow(0 0 10px rgba(176, 38, 255, 0.7));
+        transform: scale(1.05);
     }
 }
 .pluto-logo-breath {
-    animation: plutoLogoBreath 3.2s ease-in-out infinite;
+    animation: plutoLogoBreath 4.5s ease-in-out infinite;
 }
 
 /* Audio waveform */
