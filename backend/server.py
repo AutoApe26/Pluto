@@ -8,7 +8,10 @@ from pathlib import Path
 from pydantic import BaseModel, Field
 from typing import List, Optional, Literal
 import uuid
+import asyncio
 from datetime import datetime, timezone, timedelta
+
+from bot_service import bot_loop, run_once, TOPIC_BOT_NAMES
 
 
 ROOT_DIR = Path(__file__).parent
@@ -71,6 +74,7 @@ class Post(BaseModel):
     expires_at: str
     report_count: int = 0
     hidden: bool = False
+    is_bot: bool = False
 
 class MusicCreate(BaseModel):
     link_url: str = Field(min_length=8, max_length=600)
@@ -102,6 +106,7 @@ class MusicPost(BaseModel):
     expires_at: str
     report_count: int = 0
     hidden: bool = False
+    is_bot: bool = False
 
 class ReactionCreate(BaseModel):
     device_id: str
@@ -357,6 +362,28 @@ async def mod_safe(target_type: str, target_id: str, x_mod_key: Optional[str] = 
     )
     return {"ok": True}
 
+@api_router.get("/mod/bots/status")
+async def mod_bots_status(x_mod_key: Optional[str] = Header(None)):
+    check_mod(x_mod_key)
+    bot_posts = await db.posts.count_documents({"is_bot": True})
+    bot_music = await db.music_posts.count_documents({"is_bot": True})
+    dedup_count = await db.bot_posted.count_documents({})
+    last = await db.bot_posted.find({}, {"_id": 0}).sort("ts", -1).limit(5).to_list(5)
+    return {
+        "bot_posts_active": bot_posts,
+        "bot_music_active": bot_music,
+        "dedup_records": dedup_count,
+        "recent": last,
+        "personalities": TOPIC_BOT_NAMES,
+    }
+
+@api_router.post("/mod/bots/run-now")
+async def mod_bots_run_now(x_mod_key: Optional[str] = Header(None)):
+    """Manually trigger one bot cycle (useful for testing / first-time seeding)."""
+    check_mod(x_mod_key)
+    stats = await run_once(db)
+    return {"ok": True, "stats": stats}
+
 @api_router.get("/")
 async def root():
     return {"app": "Pluto", "tagline": "Post it. Let it vanish."}
@@ -375,6 +402,8 @@ async def startup():
     await db.reports.create_index([("target_type", 1), ("target_id", 1), ("device_id", 1)], unique=True)
     # One-time cleanup: drop legacy music posts that don't have link_url
     await db.music_posts.delete_many({"link_url": {"$exists": False}})
+    # Launch background bot loop
+    app.state.bot_task = asyncio.create_task(bot_loop(db))
 
 app.include_router(api_router)
 

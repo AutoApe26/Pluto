@@ -41,6 +41,15 @@ export const PostCard = ({ post, index = 0 }) => {
           >
             #{post.topic}
           </span>
+          {post.is_bot && (
+            <span
+              className="text-[9px] px-1.5 py-0.5 rounded-full font-mono uppercase tracking-wider border border-cyan-400/40 text-cyan-300 bg-cyan-300/5"
+              title={post.source ? `Auto-feed · ${post.source}` : "Auto-feed"}
+              data-testid={`post-bot-badge-${post.id}`}
+            >
+              · bot
+            </span>
+          )}
           <span className="text-xs text-zinc-500">
             {relativeTime(post.created_at)}
           </span>
