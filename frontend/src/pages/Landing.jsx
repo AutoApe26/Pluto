@@ -150,25 +150,25 @@ export const Landing = ({ onCreate }) => {
         </motion.div>
       </section>
 
-      {/* TRENDING (list rows) */}
+      {/* TRENDING — large monospace cards */}
       <section className="max-w-3xl mx-auto px-5 sm:px-8 pb-12" data-testid="trending-section">
-        <div className="flex items-end justify-between mb-5">
+        <div className="flex items-end justify-between mb-6">
           <div>
-            <p className="text-[10px] uppercase tracking-[0.3em] text-zinc-500 font-mono">
-              best lost thoughts
+            <h2 className="font-display text-4xl sm:text-5xl leading-none">Trending</h2>
+            <p className="mt-2 text-[10px] uppercase tracking-[0.3em] text-zinc-500 font-mono">
+              latest lost thoughts
             </p>
-            <h2 className="font-display text-3xl sm:text-4xl mt-1">Trending</h2>
           </div>
           <Link
             to="/topics"
-            className="text-sm text-zinc-400 hover:text-cyan-300 transition inline-flex items-center gap-1"
+            className="text-sm text-purple-300 hover:text-purple-200 transition inline-flex items-center gap-1 font-mono"
             data-testid="trending-see-all"
           >
             See all <ArrowRight className="w-4 h-4" />
           </Link>
         </div>
 
-        <div className="glass rounded-3xl overflow-hidden divide-y divide-white/5">
+        <div className="space-y-4">
           {trendList.map((p, i) => {
             const Icon = TOPIC_ICONS[p.topic] || Eye;
             const color = TOPIC_COLORS[p.topic] || "#00F0FF";
@@ -176,41 +176,44 @@ export const Landing = ({ onCreate }) => {
             return (
               <motion.div
                 key={p.id}
-                initial={{ opacity: 0, x: -10 }}
-                whileInView={{ opacity: 1, x: 0 }}
+                initial={{ opacity: 0, y: 14 }}
+                whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true }}
-                transition={{ delay: i * 0.04 }}
-                className="group flex items-center gap-3 px-4 sm:px-5 py-3.5 hover:bg-white/[0.03] transition cursor-pointer"
+                transition={{ delay: i * 0.05 }}
+                className="group relative glass rounded-3xl px-5 sm:px-7 py-5 sm:py-6 hover:bg-white/[0.04] transition cursor-pointer border border-white/5 hover:border-white/10"
                 data-testid={`trending-row-${p.id}`}
                 onClick={() =>
                   (window.location.href = `/topics?topic=${p.topic}`)
                 }
               >
-                <div
-                  className="shrink-0 w-9 h-9 rounded-full flex items-center justify-center border"
-                  style={{
-                    color,
-                    borderColor: `${color}40`,
-                    background: `${color}10`,
-                  }}
-                >
-                  <Icon className="w-4 h-4" />
-                </div>
-                <div className="min-w-0 flex-1">
-                  <p
-                    className="text-[10px] font-mono uppercase tracking-wider"
-                    style={{ color }}
+                {/* Top row: category pill + arrow */}
+                <div className="flex items-center justify-between gap-3">
+                  <div
+                    className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 border bg-black/30"
+                    style={{
+                      color,
+                      borderColor: `${color}40`,
+                    }}
                   >
-                    {label}
-                  </p>
-                  <p className="text-sm text-zinc-200 truncate">{p.content}</p>
+                    <Icon className="w-3 h-3" />
+                    <span className="text-[10px] font-mono uppercase tracking-wider">
+                      {label}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    {p.expires_at && (
+                      <span className="hidden sm:inline-block">
+                        <TimeRemainingBadge expiresAt={p.expires_at} />
+                      </span>
+                    )}
+                    <ArrowRight className="w-4 h-4 text-zinc-500 group-hover:text-white group-hover:translate-x-0.5 transition" />
+                  </div>
                 </div>
-                {p.expires_at && (
-                  <span className="hidden sm:inline-block">
-                    <TimeRemainingBadge expiresAt={p.expires_at} />
-                  </span>
-                )}
-                <ChevronRight className="w-4 h-4 text-zinc-500 group-hover:text-white group-hover:translate-x-0.5 transition shrink-0" />
+
+                {/* Big monospace content */}
+                <p className="mt-4 sm:mt-5 font-mono text-white text-lg sm:text-2xl leading-snug tracking-tight line-clamp-2">
+                  {p.content}
+                </p>
               </motion.div>
             );
           })}
