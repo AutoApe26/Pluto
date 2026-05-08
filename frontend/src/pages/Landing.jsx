@@ -150,9 +150,6 @@ export const Landing = ({ onCreate }) => {
         </motion.div>
       </section>
 
-      {/* TOPICS GRID — pick your orbit */}
-      <TopicsGrid />
-
       {/* TRENDING (list rows) */}
       <section className="max-w-3xl mx-auto px-5 sm:px-8 pb-12" data-testid="trending-section">
         <div className="flex items-end justify-between mb-5">
@@ -337,6 +334,9 @@ export const Landing = ({ onCreate }) => {
           </div>
         )}
       </section>
+
+      {/* TOPICS GRID — pick your orbit (bottom of home) */}
+      <TopicsGrid />
 
       <section className="max-w-3xl mx-auto px-5 sm:px-8 pb-32 text-center">
         <button
