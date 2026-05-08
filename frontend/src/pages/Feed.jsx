@@ -30,13 +30,13 @@ export const Feed = ({ topics }) => {
       <div className="max-w-3xl mx-auto px-4 sm:px-6 pt-6 pb-32">
         <div className="mb-5">
           <p className="text-[10px] uppercase tracking-[0.3em] text-cyan-300 font-mono">
-            Live feed
+            Browse all topics
           </p>
           <h1 className="font-display text-3xl sm:text-4xl mt-1">
-            Anonymous whispers
+            Topics
           </h1>
           <p className="mt-1 text-sm text-zinc-500">
-            Every post auto-vanishes in 24 hours.
+            Anonymous whispers across 8 topics. Every post auto-vanishes in 24h.
           </p>
         </div>
 

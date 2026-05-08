@@ -1,10 +1,10 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useState } from "react";
 import { motion } from "framer-motion";
-import { Play, Pause, Heart, ThumbsDown } from "lucide-react";
+import { Play, Heart, ThumbsDown, ExternalLink, Music as MusicIcon } from "lucide-react";
 import { toast } from "sonner";
 import { api } from "../lib/api";
 import { ReportButton } from "./ReportButton";
-import { relativeTime } from "../lib/format";
+import { TimeRemainingBadge } from "./TimeRemainingBadge";
 
 const FALLBACK_COVERS = [
   "https://static.prod-images.emergentagent.com/jobs/9e88d8f6-abc5-4041-b787-3d490a873302/images/d0a9d09aec04baea11248d881ee3e510f44a976c4db80243bef23e8e7c42b8bb.png",
@@ -12,12 +12,37 @@ const FALLBACK_COVERS = [
   "https://static.prod-images.emergentagent.com/jobs/9e88d8f6-abc5-4041-b787-3d490a873302/images/c8cf273ab43d9cecad200f4ff4c2787881f84f1f2ed48ed02617d136a5174162.png",
 ];
 
-export const MusicCard = ({ track, index = 0, onPlay, isPlaying, audioRef }) => {
-  const [hugs, setHugs] = useState(track.hugs);
-  const [fugs, setFugs] = useState(track.fugs);
+// Convert a Spotify or YouTube link into an embed URL
+const buildEmbedUrl = (track) => {
+  if (!track.link_url) return null;
+  if (track.provider === "spotify") {
+    // open.spotify.com/track/ID -> open.spotify.com/embed/track/ID
+    return track.link_url.replace(
+      /open\.spotify\.com\/(track|album|playlist|episode)\//,
+      "open.spotify.com/embed/$1/"
+    );
+  }
+  if (track.provider === "youtube") {
+    let id = "";
+    const m1 = track.link_url.match(/youtu\.be\/([\w-]+)/);
+    const m2 = track.link_url.match(/[?&]v=([\w-]+)/);
+    const m3 = track.link_url.match(/youtube\.com\/shorts\/([\w-]+)/);
+    id = (m1 && m1[1]) || (m2 && m2[1]) || (m3 && m3[1]) || "";
+    if (id) return `https://www.youtube.com/embed/${id}`;
+  }
+  return null;
+};
+
+export const MusicCard = ({ track, index = 0 }) => {
+  const [hugs, setHugs] = useState(track.hugs || 0);
+  const [fugs, setFugs] = useState(track.fugs || 0);
   const [my, setMy] = useState(null);
+  const [showEmbed, setShowEmbed] = useState(false);
+
   const cover =
-    track.cover || FALLBACK_COVERS[index % FALLBACK_COVERS.length];
+    track.thumbnail || FALLBACK_COVERS[index % FALLBACK_COVERS.length];
+  const embedUrl = buildEmbedUrl(track);
+  const displayName = track.sudo_name || `anon · ${track.device_id?.slice(-6)}`;
 
   useEffect(() => {
     api.myReaction(track.id).then((r) => setMy(r.type)).catch(() => {});
@@ -63,38 +88,54 @@ export const MusicCard = ({ track, index = 0, onPlay, isPlaying, audioRef }) => 
             src={cover}
             alt=""
             className="w-24 h-24 sm:w-28 sm:h-28 rounded-2xl object-cover border border-white/10"
+            onError={(e) => {
+              e.currentTarget.src = FALLBACK_COVERS[0];
+            }}
           />
-          <button
-            onClick={() => onPlay(track)}
-            data-testid={`play-${track.id}`}
-            className="absolute inset-0 flex items-center justify-center rounded-2xl bg-black/40 opacity-0 hover:opacity-100 transition-opacity"
-          >
-            <span className="w-12 h-12 rounded-full bg-cyan-300 text-black flex items-center justify-center glow-cyan">
-              {isPlaying ? <Pause className="w-5 h-5" /> : <Play className="w-5 h-5 ml-0.5" />}
+          <div className="absolute top-1.5 left-1.5">
+            <span
+              className={`text-[9px] font-mono uppercase px-1.5 py-0.5 rounded-full ${
+                track.provider === "spotify"
+                  ? "bg-emerald-500/20 text-emerald-200 border border-emerald-400/40"
+                  : "bg-red-500/20 text-red-200 border border-red-400/40"
+              }`}
+            >
+              {track.provider}
             </span>
-          </button>
+          </div>
         </div>
 
         <div className="flex-1 min-w-0">
           <div className="flex items-start justify-between gap-2">
             <div className="min-w-0">
-              <h3
-                className="font-display text-base sm:text-lg truncate"
-                data-testid={`music-title-${track.id}`}
-              >
-                {track.title}
-              </h3>
-              <p className="text-sm text-zinc-400 truncate">
-                by <span className="text-white/80">{track.artist}</span>
+              <div className="flex items-center gap-1.5 text-zinc-300">
+                <MusicIcon className="w-3.5 h-3.5 shrink-0" />
+                <h3
+                  className="font-display text-base sm:text-lg truncate"
+                  data-testid={`music-title-${track.id}`}
+                >
+                  {track.title || "Untitled track"}
+                </h3>
+              </div>
+              {track.artist && (
+                <p className="text-sm text-zinc-400 truncate mt-0.5">
+                  by <span className="text-white/80">{track.artist}</span>
+                </p>
+              )}
+              <p className="text-[10px] text-zinc-500 font-mono mt-0.5">
+                drop by {displayName}
               </p>
             </div>
-            <span className="text-[10px] text-zinc-500 font-mono whitespace-nowrap">
-              {relativeTime(track.created_at)}
-            </span>
+            <TimeRemainingBadge expiresAt={track.expires_at} />
           </div>
 
           {track.caption && (
-            <p className="mt-1 text-sm text-zinc-400 line-clamp-2">
+            <p
+              className={`mt-2 text-sm leading-snug line-clamp-3 ${
+                track.is_lyrics ? "italic text-purple-200/80" : "text-zinc-400"
+              }`}
+            >
+              {track.is_lyrics ? "♫ " : ""}
               {track.caption}
             </p>
           )}
@@ -114,6 +155,33 @@ export const MusicCard = ({ track, index = 0, onPlay, isPlaying, audioRef }) => 
         </div>
       </div>
 
+      {/* Play button + embed */}
+      <div className="mt-4">
+        {showEmbed && embedUrl ? (
+          <div
+            className="rounded-2xl overflow-hidden border border-white/10"
+            data-testid={`embed-${track.id}`}
+          >
+            <iframe
+              src={embedUrl}
+              title={track.title || "track"}
+              loading="lazy"
+              allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
+              className={`w-full ${track.provider === "youtube" ? "aspect-video" : "h-[152px]"}`}
+            />
+          </div>
+        ) : (
+          <button
+            onClick={() => setShowEmbed(true)}
+            data-testid={`play-${track.id}`}
+            className="w-full inline-flex items-center justify-center gap-2 rounded-full py-2.5 text-sm font-medium text-white bg-gradient-to-r from-purple-500 to-fuchsia-500 hover:opacity-95 transition shadow-lg shadow-purple-500/20"
+          >
+            <Play className="w-4 h-4 fill-white" />
+            Play
+          </button>
+        )}
+      </div>
+
       <div className="mt-4 flex items-center justify-between">
         <div className="flex items-center gap-2">
           <button
@@ -121,7 +189,7 @@ export const MusicCard = ({ track, index = 0, onPlay, isPlaying, audioRef }) => 
             data-testid={`hug-${track.id}`}
             className={`inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full border text-sm transition-all ${
               my === "hug"
-                ? "bg-pink-500/20 border-pink-400/50 text-pink-200 glow-purple"
+                ? "bg-pink-500/20 border-pink-400/50 text-pink-200"
                 : "border-white/10 text-zinc-300 hover:border-pink-400/40 hover:text-pink-200"
             }`}
           >
@@ -130,7 +198,7 @@ export const MusicCard = ({ track, index = 0, onPlay, isPlaying, audioRef }) => 
             />
             <span className="font-mono">{hugs}</span>
             <span className="text-[10px] uppercase tracking-wider opacity-70">
-              hug
+              HUG
             </span>
           </button>
           <button
@@ -138,7 +206,7 @@ export const MusicCard = ({ track, index = 0, onPlay, isPlaying, audioRef }) => 
             data-testid={`fug-${track.id}`}
             className={`inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full border text-sm transition-all ${
               my === "fug"
-                ? "bg-zinc-700/50 border-zinc-500/60 text-zinc-100"
+                ? "bg-zinc-700/60 border-zinc-500/60 text-zinc-100"
                 : "border-white/10 text-zinc-400 hover:border-zinc-400 hover:text-zinc-100"
             }`}
           >
@@ -147,11 +215,23 @@ export const MusicCard = ({ track, index = 0, onPlay, isPlaying, audioRef }) => 
             />
             <span className="font-mono">{fugs}</span>
             <span className="text-[10px] uppercase tracking-wider opacity-70">
-              fug
+              FUG
             </span>
           </button>
         </div>
-        <ReportButton targetType="music" targetId={track.id} />
+        <div className="flex items-center gap-1">
+          <a
+            href={track.link_url}
+            target="_blank"
+            rel="noreferrer"
+            className="inline-flex items-center gap-1 text-xs text-zinc-400 hover:text-white px-2 py-1 rounded-full"
+            data-testid={`open-${track.id}`}
+            title="Open original"
+          >
+            <ExternalLink className="w-3.5 h-3.5" />
+          </a>
+          <ReportButton targetType="music" targetId={track.id} />
+        </div>
       </div>
     </motion.div>
   );

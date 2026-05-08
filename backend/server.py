@@ -32,7 +32,7 @@ TOPICS_SEED = [
     {"slug": "sports", "name": "Sports", "icon": "Trophy", "color": "#34C759"},
     {"slug": "memes", "name": "Memes", "icon": "Laugh", "color": "#FFCC00"},
     {"slug": "mental-health", "name": "Mental Health", "icon": "HeartPulse", "color": "#FF6B9D"},
-    {"slug": "tell-anything", "name": "Tell Anything", "icon": "MessageSquare", "color": "#00F0FF"},
+    {"slug": "rant", "name": "Rant", "icon": "Zap", "color": "#00F0FF"},
     {"slug": "stories", "name": "Stories", "icon": "BookOpen", "color": "#B026FF"},
     {"slug": "confession", "name": "Confession", "icon": "Eye", "color": "#FF3B30"},
     {"slug": "music", "name": "Music", "icon": "Music", "color": "#7B61FF"},
@@ -54,9 +54,10 @@ class Topic(BaseModel):
     color: str
 
 class PostCreate(BaseModel):
-    content: str = Field(min_length=1, max_length=2000)
+    content: str = Field(min_length=1, max_length=1000)
     topic: str
     image: Optional[str] = None  # base64 data url
+    sudo_name: Optional[str] = None
     device_id: str
 
 class Post(BaseModel):
@@ -64,6 +65,7 @@ class Post(BaseModel):
     content: str
     topic: str
     image: Optional[str] = None
+    sudo_name: Optional[str] = None
     device_id: str
     created_at: str
     expires_at: str
@@ -71,26 +73,33 @@ class Post(BaseModel):
     hidden: bool = False
 
 class MusicCreate(BaseModel):
-    artist: str = Field(min_length=1, max_length=80)
-    title: str = Field(min_length=1, max_length=120)
+    link_url: str = Field(min_length=8, max_length=600)
+    provider: Optional[str] = None  # spotify | youtube
+    title: Optional[str] = None
+    artist: Optional[str] = None
+    thumbnail: Optional[str] = None
     caption: Optional[str] = ""
-    audio: str  # base64 data url
-    cover: Optional[str] = None
+    is_lyrics: bool = False
+    sudo_name: Optional[str] = None
     tags: List[str] = []
     device_id: str
 
 class MusicPost(BaseModel):
     id: str
-    artist: str
-    title: str
+    link_url: str
+    provider: str = "youtube"
+    title: str = ""
+    artist: str = ""
+    thumbnail: Optional[str] = None
     caption: str = ""
-    audio: str
-    cover: Optional[str] = None
+    is_lyrics: bool = False
+    sudo_name: Optional[str] = None
     tags: List[str] = []
     device_id: str
     hugs: int = 0
     fugs: int = 0
     created_at: str
+    expires_at: str
     report_count: int = 0
     hidden: bool = False
 
@@ -166,6 +175,7 @@ async def create_post(payload: PostCreate):
         content=payload.content.strip(),
         topic=payload.topic,
         image=payload.image,
+        sudo_name=(payload.sudo_name or "").strip()[:24] or None,
         device_id=payload.device_id,
         created_at=iso(created),
         expires_at=iso(expires),
@@ -183,21 +193,36 @@ async def delete_post(post_id: str, x_device_id: str = Header(...)):
 # ============================================================
 # Music
 # ============================================================
+async def cleanup_expired_music():
+    """Delete music posts past expires_at (24h)."""
+    now_iso = iso(now_utc())
+    await db.music_posts.delete_many({"expires_at": {"$lt": now_iso}})
+
 @api_router.get("/music")
 async def list_music(limit: int = 30, skip: int = 0):
-    cursor = db.music_posts.find({"hidden": False}, {"_id": 0}).sort("created_at", -1).skip(skip).limit(limit)
+    await cleanup_expired_music()
+    cursor = db.music_posts.find({"hidden": False, "link_url": {"$exists": True}}, {"_id": 0}).sort("created_at", -1).skip(skip).limit(limit)
     return await cursor.to_list(length=limit)
 
 @api_router.get("/music/featured")
-async def featured_music(limit: int = 3):
-    cursor = db.music_posts.find({"hidden": False}, {"_id": 0}).sort("hugs", -1).limit(limit)
+async def featured_music(limit: int = 4):
+    await cleanup_expired_music()
+    cursor = db.music_posts.find({"hidden": False, "link_url": {"$exists": True}}, {"_id": 0}).sort([("hugs", -1), ("created_at", -1)]).limit(limit)
     return await cursor.to_list(length=limit)
+
+def detect_provider(url: str) -> Optional[str]:
+    u = url.lower()
+    if "spotify.com" in u or "spotify:" in u:
+        return "spotify"
+    if "youtube.com" in u or "youtu.be" in u:
+        return "youtube"
+    return None
 
 @api_router.post("/music", response_model=MusicPost)
 async def upload_music(payload: MusicCreate):
-    if not payload.audio.startswith("data:audio"):
-        raise HTTPException(400, "Audio must be a base64 data URL")
-    # Spam protection
+    provider = payload.provider or detect_provider(payload.link_url)
+    if not provider:
+        raise HTTPException(400, "Only Spotify or YouTube links are supported.")
     one_hour_ago = iso(now_utc() - timedelta(hours=1))
     recent_count = await db.music_posts.count_documents({
         "device_id": payload.device_id,
@@ -205,16 +230,21 @@ async def upload_music(payload: MusicCreate):
     })
     if recent_count >= 5:
         raise HTTPException(429, "Slow down — too many uploads.")
+    created = now_utc()
     track = MusicPost(
         id=str(uuid.uuid4()),
-        artist=payload.artist.strip(),
-        title=payload.title.strip(),
-        caption=(payload.caption or "").strip(),
-        audio=payload.audio,
-        cover=payload.cover,
-        tags=[t.strip() for t in payload.tags if t.strip()][:8],
+        link_url=payload.link_url.strip(),
+        provider=provider,
+        title=(payload.title or "").strip()[:200],
+        artist=(payload.artist or "").strip()[:120],
+        thumbnail=payload.thumbnail,
+        caption=(payload.caption or "").strip()[:800],
+        is_lyrics=bool(payload.is_lyrics),
+        sudo_name=(payload.sudo_name or "").strip()[:24] or None,
+        tags=[t.strip().lstrip("#") for t in payload.tags if t.strip()][:8],
         device_id=payload.device_id,
-        created_at=iso(now_utc()),
+        created_at=iso(created),
+        expires_at=iso(created + timedelta(hours=24)),
     )
     await db.music_posts.insert_one(track.model_dump())
     return track
@@ -340,8 +370,11 @@ async def startup():
     await db.posts.create_index("expires_at")
     await db.posts.create_index("topic")
     await db.music_posts.create_index("created_at")
+    await db.music_posts.create_index("expires_at")
     await db.music_reactions.create_index([("music_id", 1), ("device_id", 1)], unique=True)
     await db.reports.create_index([("target_type", 1), ("target_id", 1), ("device_id", 1)], unique=True)
+    # One-time cleanup: drop legacy music posts that don't have link_url
+    await db.music_posts.delete_many({"link_url": {"$exists": False}})
 
 app.include_router(api_router)
 

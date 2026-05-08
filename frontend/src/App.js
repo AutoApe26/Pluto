@@ -9,6 +9,7 @@ import { Landing } from "./pages/Landing";
 import { Feed } from "./pages/Feed";
 import { MusicPage } from "./pages/Music";
 import { Moderation } from "./pages/Moderation";
+import { InfoPage } from "./pages/Info";
 import { api } from "./lib/api";
 
 function Shell() {
@@ -29,10 +30,26 @@ function Shell() {
         <Routes>
           <Route
             path="/"
-            element={<Landing onCreate={() => setCreateOpen(true)} />}
+            element={
+              <Landing
+                onCreate={() => setCreateOpen(true)}
+                key={postsRefresh}
+              />
+            }
           />
-          <Route path="/feed" element={<Feed topics={topics} key={postsRefresh} />} />
+          <Route
+            path="/topics"
+            element={<Feed topics={topics} key={postsRefresh} />}
+          />
+          <Route
+            path="/feed"
+            element={<Feed topics={topics} key={postsRefresh} />}
+          />
           <Route path="/music" element={<MusicPage />} />
+          <Route
+            path="/info"
+            element={<InfoPage onCreate={() => setCreateOpen(true)} />}
+          />
           <Route path="/mod-station" element={<Moderation />} />
         </Routes>
       </main>
