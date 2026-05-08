@@ -176,7 +176,7 @@ async def create_post(payload: PostCreate):
     if reason:
         raise HTTPException(400, reason)
 
-    # Rule: same content max 5x / 24h (per device)
+    # Rule: same content max 5x / 24h (per device) + global anti-spam cap
     one_day_ago = iso(now_utc() - timedelta(hours=24))
     norm = normalized_for_dedup(content)
     same_count = await db.posts.count_documents({
@@ -186,6 +186,15 @@ async def create_post(payload: PostCreate):
     })
     if same_count >= 5:
         raise HTTPException(429, "Same content max 5×/24h.")
+    # Global cap: nobody can flood the platform with the same content even
+    # across multiple device IDs (catches device-id rotation bypass).
+    global_same = await db.posts.count_documents({
+        "content_norm": norm,
+        "is_bot": {"$ne": True},
+        "created_at": {"$gte": one_day_ago},
+    })
+    if global_same >= 25:
+        raise HTTPException(429, "This content has been posted too many times today.")
 
     # Spam protection: max 10 posts per device per hour
     one_hour_ago = iso(now_utc() - timedelta(hours=1))
@@ -484,20 +493,30 @@ async def startup():
     await db.reports.create_index([("target_type", 1), ("target_id", 1), ("device_id", 1)], unique=True)
     # One-time cleanup: drop legacy music posts that don't have link_url
     await db.music_posts.delete_many({"link_url": {"$exists": False}})
-    # Backfill hugs/fugs on legacy posts so all rows have the fields populated
+    # Backfill hugs/fugs + content_norm on legacy posts so all rules apply
     import random as _rnd
     legacy_cursor = db.posts.find(
-        {"$or": [{"hugs": {"$exists": False}}, {"fugs": {"$exists": False}}]},
-        {"_id": 1, "is_bot": 1},
+        {
+            "$or": [
+                {"hugs": {"$exists": False}},
+                {"fugs": {"$exists": False}},
+                {"content_norm": {"$exists": False}},
+            ]
+        },
+        {"_id": 1, "is_bot": 1, "content": 1, "hugs": 1, "fugs": 1, "content_norm": 1},
     )
     async for p in legacy_cursor:
-        is_bot = bool(p.get("is_bot"))
-        # Bot posts get a believable lived-in count, human posts start at 0
-        hugs = _rnd.randint(3, 84) if is_bot else 0
-        fugs = _rnd.randint(0, max(2, hugs // 12)) if is_bot else 0
-        await db.posts.update_one(
-            {"_id": p["_id"]}, {"$set": {"hugs": hugs, "fugs": fugs}}
-        )
+        update: dict = {}
+        if p.get("hugs") is None or p.get("fugs") is None:
+            is_bot = bool(p.get("is_bot"))
+            hugs = _rnd.randint(3, 84) if is_bot else 0
+            fugs = _rnd.randint(0, max(2, hugs // 12)) if is_bot else 0
+            update["hugs"] = hugs
+            update["fugs"] = fugs
+        if not p.get("content_norm") and p.get("content"):
+            update["content_norm"] = normalized_for_dedup(p["content"])
+        if update:
+            await db.posts.update_one({"_id": p["_id"]}, {"$set": update})
     # Launch background bot loop
     app.state.bot_task = asyncio.create_task(bot_loop(db))
 
