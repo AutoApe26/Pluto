@@ -1,0 +1,102 @@
+{
+  "theme": "dark",
+  "archetype": "7 (Electric & Neon)",
+  "typography": {
+    "fonts": {
+      "heading": "Unbounded",
+      "body": "Outfit",
+      "mono": "JetBrains Mono"
+    },
+    "rules": {
+      "headings": "Tight letter spacing (tracking-tight), never Inter or standard sans. Use fluid scaling text-4xl to text-6xl maximum.",
+      "body": "Clean and legible, text-base on desktop, text-sm on mobile. Tracking normal to wide."
+    }
+  },
+  "colors": {
+    "background": {
+      "primary": "#05050A",
+      "secondary": "#0A0A12",
+      "surface_glass": "rgba(18, 18, 25, 0.4)"
+    },
+    "text": {
+      "primary": "#FFFFFF",
+      "secondary": "#A1A1AA",
+      "muted": "#71717A"
+    },
+    "accents": {
+      "primary": "#00F0FF",
+      "secondary": "#B026FF",
+      "glow_primary": "rgba(0, 240, 255, 0.3)",
+      "glow_secondary": "rgba(176, 38, 255, 0.3)",
+      "danger": "#FF3B30",
+      "success": "#34C759"
+    },
+    "rules": "Avoid pure black. Tint backgrounds slightly blue/purple. Ensure minimum 4.5:1 contrast. Use 1px solid strokes or inner glows over soft shadows."
+  },
+  "spacing_and_layout": {
+    "system": "Tailwind scale with generous spacing (p-4, p-6, p-8). Mobile-first responsive grids.",
+    "containers": "Rounded-3xl for cards (rounded-[1.5rem]), glassmorphism background (backdrop-blur-xl), 1px solid border with 10% white opacity.",
+    "navigation": "Floating bottom nav for mobile (fixed bottom-4 left-1/2 -translate-x-1/2 w-[90%] glassmorphism border border-white/10 z-50), header sticky top-0 with glassmorphism."
+  },
+  "components": {
+    "buttons": "Primary: Solid neon blue (#00F0FF) text on black background with neon blue border, or vice versa. Hover state: scale up slightly, increase glow. Fully rounded (rounded-full) for pills.",
+    "cards": "Anonymous post cards: backdrop-blur-xl bg-white/5 border border-white/10 rounded-3xl p-6. Time-remaining badge top right with neon text.",
+    "music_player": "Sleek, waveform visualizer or minimal track bar. Large squared-off or slightly rounded cover art. 'Hug'/'Fug' reaction buttons with animated states and vibrant color fills on active.",
+    "modals": "Shadcn Dialog with heavily customized glassmorphism styling, dark background overlay (bg-black/60 backdrop-blur-sm).",
+    "tags": "Pill-shaped (rounded-full), bg-white/5, text-white, small text."
+  },
+  "motion": {
+    "transitions": "Smooth transitions on hover (transition: transform 0.2s ease, opacity 0.2s ease, box-shadow 0.2s ease).",
+    "interactions": "Hover refract on glass cards, slight lift (-translate-y-1) and enhanced border glow on interactive elements."
+  },
+  "media": {
+    "image_urls": [
+      {
+        "url": "https://static.prod-images.emergentagent.com/jobs/9e88d8f6-abc5-4041-b787-3d490a873302/images/0ac2dc17b2de9ab4bca9c94a3847addc28165d7ebe3824df9200c98b2d65f2b4.png",
+        "category": "logo",
+        "description": "Pluto App Logo - minimalist glowing neon pluto planet graphic"
+      },
+      {
+        "url": "https://static.prod-images.emergentagent.com/jobs/9e88d8f6-abc5-4041-b787-3d490a873302/images/3dd9c5de0452a0478d75402ce1a1e81d6413c355789dd2a87d4ba3ebbe6e0cc3.png",
+        "category": "hero_background",
+        "description": "Cosmic abstract neon blue and purple nebula for the landing page hero section background"
+      },
+      {
+        "url": "https://images.unsplash.com/photo-1774132221866-9e6c2275b700?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA1NzB8MHwxfHNlYXJjaHwxfHxkYXJrJTIwZnV0dXJpc3RpYyUyMGNvc21pYyUyMGFic3RyYWN0fGVufDB8fHx8MTc3ODI1NTIzM3ww&ixlib=rb-4.1.0&q=85",
+        "category": "music_cover",
+        "description": "Abstract swirling purple and blue music cover"
+      },
+      {
+        "url": "https://static.prod-images.emergentagent.com/jobs/9e88d8f6-abc5-4041-b787-3d490a873302/images/d0a9d09aec04baea11248d881ee3e510f44a976c4db80243bef23e8e7c42b8bb.png",
+        "category": "music_cover",
+        "description": "Underground synthwave neon music album cover"
+      },
+      {
+        "url": "https://static.prod-images.emergentagent.com/jobs/9e88d8f6-abc5-4041-b787-3d490a873302/images/c8cf273ab43d9cecad200f4ff4c2787881f84f1f2ed48ed02617d136a5174162.png",
+        "category": "music_cover",
+        "description": "Lo-fi chill mysterious album cover silhouette"
+      }
+    ],
+    "rules": "Ensure all images use object-cover, max-h-[80vh] on mobile. Images in post feeds should have rounded-2xl borders."
+  },
+  "icons_and_libraries": {
+    "icons": "lucide-react",
+    "ui_components": "shadcn/ui for dialogs, tabs, select. Framer motion for animations.",
+    "testing": "All interactive elements MUST have data-testid attributes (e.g., data-testid='create-post-button')."
+  },
+  "instructions_to_main_agent": [
+    "Build a mobile-first hybrid app with a floating bottom navigation bar containing links to Feed, Create Post, Music, and Profile/Settings.",
+    "Use Archetype 7 (Electric & Neon). Implement a dark-first UI with black/graphite backgrounds tinted slightly blue (#05050A).",
+    "Use 'Unbounded' font for headings and 'Outfit' for body.",
+    "The Feed should have topic filters (Crypto, Sports, Memes, Mental Health, Tell Anything, Stories, Confession, Music) displayed as horizontally scrollable pills.",
+    "Post cards must be glassmorphic (backdrop-blur-xl bg-white/5 border border-white/10) with rounded-3xl corners.",
+    "Include a 'Time Remaining' badge on posts to indicate the 24h auto-delete feature.",
+    "In the Music page, use the provided cover images, implement an audio player layout, and 'Hug' / 'Fug' reaction buttons.",
+    "Use a Hidden Moderation Dashboard which matches the aesthetic but has denser data tables (Archetype 4 structural influence but with Archetype 7 colors).",
+    "Do NOT use Space Grotesk font. Do NOT use standard Shadcn card styles without customizing them to match the glassmorphic, rounded-3xl Gen Z aesthetic.",
+    "Avoid generic centered layouts. Use asymmetrical grids where possible and generous padding.",
+    "Never use placeholder image URLs. Rely strictly on the images provided in this JSON.",
+    "Include a Landing Page highlighting the trending posts and the taglines: 'Post it. Let it vanish.' and 'Where lost thoughts land.'",
+    "Ensure all interactive elements have hover and focus states with proper contrast and 'data-testid' for testing."
+  ]
+}
