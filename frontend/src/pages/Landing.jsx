@@ -253,9 +253,9 @@ export const Landing = ({ onCreate }) => {
                   </div>
                 </div>
 
-                {/* BIG topic name in monospace (-3px from previous) */}
+                {/* Topic title — 28px mobile / 40px desktop, leading-[1.05], bold mono */}
                 <h3
-                  className="mt-3 font-mono uppercase tracking-tight text-[27px] sm:text-[45px] leading-none break-words"
+                  className="mt-3 font-mono font-bold uppercase tracking-tight text-[28px] sm:text-[40px] leading-[1.05] break-words"
                   style={{
                     color,
                     textShadow: `0 0 20px ${color}55, 0 0 40px ${color}22`,
@@ -264,8 +264,11 @@ export const Landing = ({ onCreate }) => {
                   #{label}
                 </h3>
 
-                {/* Smaller content with key-phrase highlights — bright readable lavender */}
-                <p className="mt-3 sm:mt-4 font-mono text-zinc-200 text-[13px] sm:text-sm leading-relaxed whitespace-pre-wrap break-words line-clamp-3">
+                {/* Description body — 15px mobile / 16px desktop, leading 1.65 */}
+                <p
+                  className="mt-3 sm:mt-4 font-mono text-zinc-200 text-[15px] sm:text-base whitespace-pre-wrap break-words line-clamp-3"
+                  style={{ lineHeight: 1.65 }}
+                >
                   {highlightContent(p.content, "#E6B8FF")}
                 </p>
 

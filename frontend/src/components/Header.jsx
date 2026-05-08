@@ -22,12 +22,12 @@ export const Header = ({ onCreate }) => {
           className="flex items-center gap-2.5 group"
           data-testid="header-home-link"
         >
-          <Logo size={28} />
+          <Logo size={32} />
           <div className="leading-tight">
-            <div className="font-display text-lg sm:text-xl tracking-tight -mb-0.5">
+            <div className="font-display text-xl sm:text-2xl tracking-tight -mb-0.5">
               pluto<span className="text-glow-cyan text-cyan-300">.</span>
             </div>
-            <div className="text-[8px] uppercase tracking-[0.22em] text-zinc-500 font-mono hidden sm:block">
+            <div className="text-[9px] uppercase tracking-[0.22em] text-zinc-500 font-mono hidden sm:block">
               a page not found · $pnf product
             </div>
           </div>
