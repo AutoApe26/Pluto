@@ -11,7 +11,7 @@ import uuid
 import asyncio
 from datetime import datetime, timezone, timedelta
 
-from bot_service import bot_loop, run_once, TOPIC_BOT_NAMES
+from bot_service import bot_loop, run_once
 
 
 ROOT_DIR = Path(__file__).parent
@@ -374,7 +374,6 @@ async def mod_bots_status(x_mod_key: Optional[str] = Header(None)):
         "bot_music_active": bot_music,
         "dedup_records": dedup_count,
         "recent": last,
-        "personalities": TOPIC_BOT_NAMES,
     }
 
 @api_router.post("/mod/bots/run-now")

@@ -43,16 +43,33 @@ TOPIC_SOURCES = {
 }
 MUSIC_SOURCES = ["listentothis", "Music", "spotify", "indieheads"]
 
-TOPIC_BOT_NAMES = {
-    "crypto": "crypto-watcher",
-    "sports": "sports-anon",
-    "memes": "meme-lord",
-    "mental-health": "soft-spoken",
-    "rant": "ranting-ghost",
-    "stories": "story-teller",
-    "confession": "anon-soul",
-    "music": "underground-dj",
-}
+# Pool of organic-sounding anonymous handles. Picked at random for every drop
+# so identities feel human and never repeat per topic.
+RANDOM_NAMES = [
+    "voidkitten", "lonelyfox", "midnight42", "ghostnova", "lostmoth",
+    "neonpetal", "palewren", "hollowdream", "softecho", "craterwolf",
+    "dawnglitch", "indigo_owl", "mossy_orbit", "lavaskies", "bluerot",
+    "stargrime", "atlasdust", "faded.fern", "embertide", "glasshare",
+    "lunarmoth", "cobaltdrift", "satin_fade", "hush.kid", "plumdust",
+    "velvetwave", "nimbus07", "blursparrow", "slatehush", "paperowl",
+    "candledrift", "ochre.echo", "marblekoi", "dusk_otter", "frostlilac",
+    "willow_gh", "palmrust", "glowleaf", "wax_drift", "junebug88",
+    "cottoncomet", "peridot.wave", "oxbloodfern", "cobwebkoi", "gloamfawn",
+    "maybeghost", "suedebloom", "brassnebula", "smolderfox", "salt.bird",
+    "plumtide", "indigo.dust", "palmoth", "glowdrift", "lichendrift",
+    "twilightfern", "slatebloom", "moonwax", "briarsalt", "foggyowl",
+    "candlerot", "lichenpetal", "dustyhalo", "ironcloud", "brassdrift",
+    "vesper42", "etherfern", "paperhush", "stormvelvet", "dustprism",
+    "mauvedrift", "peachwax", "suedeghost", "atlasecho", "lavendervoid",
+    "nightonyx", "weeping.fern", "gauzy.tide", "cinder.bloom", "fogdust",
+    "palebriar", "ashrose", "lacquerdrift", "paperraven", "morrowfox",
+    "thistlecat", "copperdream", "glassthrush", "whisperjade", "softrust",
+    "blueberry.os", "tinyhalo", "mintforge", "coral.99", "sodadream",
+]
+
+
+def _pick_name() -> str:
+    return random.choice(RANDOM_NAMES)
 
 
 def _now_utc():
@@ -217,7 +234,7 @@ async def _post_topic(db, topic: str) -> bool:
                 "content": content,
                 "topic": topic,
                 "image": image,
-                "sudo_name": TOPIC_BOT_NAMES.get(topic),
+                "sudo_name": _pick_name(),
                 "device_id": f"bot_{topic}",
                 "created_at": _iso(now),
                 "expires_at": _iso(now + timedelta(hours=24)),
@@ -279,7 +296,7 @@ async def _post_music(db) -> bool:
                 "thumbnail": thumbnail,
                 "caption": "",
                 "is_lyrics": False,
-                "sudo_name": TOPIC_BOT_NAMES["music"],
+                "sudo_name": _pick_name(),
                 "tags": [],
                 "device_id": "bot_music",
                 "hugs": 0,
