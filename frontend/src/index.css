@@ -36,7 +36,7 @@
 html,
 body,
 #root {
-    background: #05050a;
+    background: #06031a;
     color: #ffffff;
     min-height: 100%;
 }
@@ -48,16 +48,21 @@ body {
     -moz-osx-font-smoothing: grayscale;
     background:
         radial-gradient(
-            1200px 600px at 10% -10%,
-            rgba(0, 240, 255, 0.07),
+            ellipse 80% 60% at 65% 18%,
+            rgba(120, 70, 220, 0.32),
             transparent 60%
         ),
         radial-gradient(
-            900px 500px at 110% 10%,
-            rgba(176, 38, 255, 0.08),
+            ellipse 70% 60% at 95% 80%,
+            rgba(80, 30, 160, 0.28),
             transparent 60%
         ),
-        #05050a;
+        radial-gradient(
+            ellipse 60% 50% at 5% 90%,
+            rgba(40, 20, 80, 0.4),
+            transparent 60%
+        ),
+        linear-gradient(135deg, #050314 0%, #0a0625 45%, #110835 100%);
     background-attachment: fixed;
 }
 

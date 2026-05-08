@@ -6,23 +6,23 @@ export const CosmicBg = ({ variant = "default" }) => {
       <div
         className="aurora-blob"
         style={{
-          width: 520,
-          height: 520,
+          width: 560,
+          height: 560,
           background:
-            "radial-gradient(closest-side, rgba(0,240,255,0.55), transparent)",
-          top: -120,
-          left: -120,
+            "radial-gradient(closest-side, rgba(140,80,230,0.35), transparent)",
+          top: -160,
+          right: "10%",
         }}
       />
       <div
         className="aurora-blob"
         style={{
-          width: 600,
-          height: 600,
+          width: 640,
+          height: 640,
           background:
-            "radial-gradient(closest-side, rgba(176,38,255,0.45), transparent)",
+            "radial-gradient(closest-side, rgba(80,30,160,0.30), transparent)",
           top: "30%",
-          right: -180,
+          right: -240,
           animationDelay: "-6s",
         }}
       />
@@ -33,9 +33,9 @@ export const CosmicBg = ({ variant = "default" }) => {
             width: 480,
             height: 480,
             background:
-              "radial-gradient(closest-side, rgba(123,97,255,0.35), transparent)",
-            bottom: -160,
-            left: "30%",
+              "radial-gradient(closest-side, rgba(60,25,120,0.30), transparent)",
+            bottom: -200,
+            left: "-10%",
             animationDelay: "-10s",
           }}
         />

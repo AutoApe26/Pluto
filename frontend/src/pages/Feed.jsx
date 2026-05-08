@@ -1,12 +1,14 @@
 import React, { useEffect, useState } from "react";
 import { motion } from "framer-motion";
+import { useSearchParams } from "react-router-dom";
 import { Loader2, Inbox } from "lucide-react";
 import { api } from "../lib/api";
 import { CosmicBg } from "../components/CosmicBg";
 import { PostCard } from "../components/PostCard";
 
 export const Feed = ({ topics }) => {
-  const [active, setActive] = useState("all");
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [active, setActive] = useState(searchParams.get("topic") || "all");
   const [posts, setPosts] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -21,7 +23,21 @@ export const Feed = ({ topics }) => {
   };
 
   useEffect(() => {
+    const urlTopic = searchParams.get("topic");
+    if (urlTopic && urlTopic !== active) {
+      setActive(urlTopic);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams]);
+
+  useEffect(() => {
     load(active);
+    if (active && active !== "all") {
+      setSearchParams({ topic: active }, { replace: true });
+    } else {
+      setSearchParams({}, { replace: true });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [active]);
 
   return (

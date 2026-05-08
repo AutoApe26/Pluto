@@ -22,6 +22,7 @@ import {
 import { CosmicBg } from "../components/CosmicBg";
 import { PlutoSphere } from "../components/Logo";
 import { TimeRemainingBadge } from "../components/TimeRemainingBadge";
+import { TopicsGrid } from "../components/TopicsGrid";
 import { api } from "../lib/api";
 import { timeRemaining } from "../lib/format";
 
@@ -149,6 +150,9 @@ export const Landing = ({ onCreate }) => {
         </motion.div>
       </section>
 
+      {/* TOPICS GRID — pick your orbit */}
+      <TopicsGrid />
+
       {/* TRENDING (list rows) */}
       <section className="max-w-3xl mx-auto px-5 sm:px-8 pb-12" data-testid="trending-section">
         <div className="flex items-end justify-between mb-5">
@@ -181,6 +185,9 @@ export const Landing = ({ onCreate }) => {
                 transition={{ delay: i * 0.04 }}
                 className="group flex items-center gap-3 px-4 sm:px-5 py-3.5 hover:bg-white/[0.03] transition cursor-pointer"
                 data-testid={`trending-row-${p.id}`}
+                onClick={() =>
+                  (window.location.href = `/topics?topic=${p.topic}`)
+                }
               >
                 <div
                   className="shrink-0 w-9 h-9 rounded-full flex items-center justify-center border"
