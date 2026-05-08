@@ -43,33 +43,48 @@ TOPIC_SOURCES = {
 }
 MUSIC_SOURCES = ["listentothis", "Music", "spotify", "indieheads"]
 
-# Pool of organic-sounding anonymous handles. Picked at random for every drop
-# so identities feel human and never repeat per topic.
-RANDOM_NAMES = [
-    "voidkitten", "lonelyfox", "midnight42", "ghostnova", "lostmoth",
-    "neonpetal", "palewren", "hollowdream", "softecho", "craterwolf",
-    "dawnglitch", "indigo_owl", "mossy_orbit", "lavaskies", "bluerot",
-    "stargrime", "atlasdust", "faded.fern", "embertide", "glasshare",
-    "lunarmoth", "cobaltdrift", "satin_fade", "hush.kid", "plumdust",
-    "velvetwave", "nimbus07", "blursparrow", "slatehush", "paperowl",
-    "candledrift", "ochre.echo", "marblekoi", "dusk_otter", "frostlilac",
-    "willow_gh", "palmrust", "glowleaf", "wax_drift", "junebug88",
-    "cottoncomet", "peridot.wave", "oxbloodfern", "cobwebkoi", "gloamfawn",
-    "maybeghost", "suedebloom", "brassnebula", "smolderfox", "salt.bird",
-    "plumtide", "indigo.dust", "palmoth", "glowdrift", "lichendrift",
-    "twilightfern", "slatebloom", "moonwax", "briarsalt", "foggyowl",
-    "candlerot", "lichenpetal", "dustyhalo", "ironcloud", "brassdrift",
-    "vesper42", "etherfern", "paperhush", "stormvelvet", "dustprism",
-    "mauvedrift", "peachwax", "suedeghost", "atlasecho", "lavendervoid",
-    "nightonyx", "weeping.fern", "gauzy.tide", "cinder.bloom", "fogdust",
-    "palebriar", "ashrose", "lacquerdrift", "paperraven", "morrowfox",
-    "thistlecat", "copperdream", "glassthrush", "whisperjade", "softrust",
-    "blueberry.os", "tinyhalo", "mintforge", "coral.99", "sodadream",
+# Pool of believable human names. Picked at random for every drop so identities
+# feel like real people and never repeat per topic.
+FIRST_NAMES = [
+    "Alex", "Sarah", "Marcus", "Priya", "Liam", "Noah", "Olivia", "Emma",
+    "Aisha", "Diego", "Mateo", "Sofia", "Layla", "Jordan", "Kai", "Maya",
+    "Ethan", "Ava", "Lucas", "Mia", "Isabella", "Logan", "Zoe", "Ezra",
+    "Hannah", "Ben", "Ivy", "Owen", "Nora", "Ryan", "Maeve", "Eli",
+    "Chloe", "Caleb", "Lily", "Aiden", "Aria", "Daniel", "Riley", "Noam",
+    "Hassan", "Yara", "Felix", "Naomi", "Theo", "Lena", "Omar", "Anika",
+    "Jack", "Ruby", "Henry", "Stella", "Leo", "Camila", "Adrian", "Nina",
+    "Wyatt", "Iris", "Julian", "Quinn", "Asher", "Eva", "Miles", "Cora",
+    "Hugo", "Elise", "Amir", "Tara", "Finn", "Sienna", "Rohan", "Hazel",
+    "Ravi", "June", "Jonas", "Vera", "Arjun", "Keira", "Samir", "Maya",
+    "Caleb", "Ines", "Tomás", "Ciara", "Yusuf", "Talia", "Idris", "Reema",
+    "Dante", "Selena", "Rafael", "Ana", "Niko", "Mei", "Hiro", "Yui",
+    "Daichi", "Saoirse", "Cian", "Ada", "Mira", "Toby",
+]
+LAST_NAMES = [
+    "Carter", "Brooks", "Patel", "Rivera", "Chen", "Nguyen", "Kim", "Reyes",
+    "Hassan", "Khan", "Cohen", "O'Brien", "Walsh", "Fernandez", "Torres",
+    "Singh", "Murphy", "Larsen", "Becker", "Romano", "Costa", "Silva",
+    "Mendez", "Park", "Lee", "Tanaka", "Suzuki", "Ahmed", "Rahman", "Iqbal",
+    "Mitchell", "Hayes", "Bennett", "Sullivan", "Foster", "Hughes",
+    "Russell", "Coleman", "Sanders", "Powell", "Long", "Ross", "Bailey",
+    "Cole", "Gardner", "Stewart", "Brennan", "Dunn", "Vargas", "Castillo",
+    "Holloway", "Whitman", "Sterling", "Marin", "Kapoor", "Sharma",
+    "Iyer", "Bose", "Müller", "Schmidt", "Petrov", "Ivanov", "Novak",
+    "Kowalski", "Andersen", "Lindqvist", "Okafor", "Adeyemi", "Mensah",
+    "Diallo", "Traore", "Yamada", "Fujii", "Watanabe", "Cho", "Yoon",
+    "Alvarez", "Ortiz", "Morales", "Rojas", "Beltran",
 ]
 
 
 def _pick_name() -> str:
-    return random.choice(RANDOM_NAMES)
+    return f"{random.choice(FIRST_NAMES)} {random.choice(LAST_NAMES)}"
+
+
+def _seed_reactions() -> tuple[int, int]:
+    """Return believable initial (hugs, fugs) so feeds feel lived-in."""
+    hugs = random.randint(3, 84)
+    fugs = random.randint(0, max(2, hugs // 12))
+    return hugs, fugs
 
 
 def _now_utc():
@@ -229,6 +244,7 @@ async def _post_topic(db, topic: str) -> bool:
                 image = it["thumbnail"]
 
             now = _now_utc()
+            hugs, fugs = _seed_reactions()
             post = {
                 "id": str(uuid.uuid4()),
                 "content": content,
@@ -236,6 +252,8 @@ async def _post_topic(db, topic: str) -> bool:
                 "image": image,
                 "sudo_name": _pick_name(),
                 "device_id": f"bot_{topic}",
+                "hugs": hugs,
+                "fugs": fugs,
                 "created_at": _iso(now),
                 "expires_at": _iso(now + timedelta(hours=24)),
                 "report_count": 0,
@@ -287,6 +305,7 @@ async def _post_music(db) -> bool:
             )
 
             now = _now_utc()
+            hugs, fugs = _seed_reactions()
             track = {
                 "id": str(uuid.uuid4()),
                 "link_url": url,
@@ -299,8 +318,8 @@ async def _post_music(db) -> bool:
                 "sudo_name": _pick_name(),
                 "tags": [],
                 "device_id": "bot_music",
-                "hugs": 0,
-                "fugs": 0,
+                "hugs": hugs,
+                "fugs": fugs,
                 "created_at": _iso(now),
                 "expires_at": _iso(now + timedelta(hours=24)),
                 "report_count": 0,

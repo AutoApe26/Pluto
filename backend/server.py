@@ -70,6 +70,8 @@ class Post(BaseModel):
     image: Optional[str] = None
     sudo_name: Optional[str] = None
     device_id: str
+    hugs: int = 0
+    fugs: int = 0
     created_at: str
     expires_at: str
     report_count: int = 0
@@ -194,6 +196,54 @@ async def delete_post(post_id: str, x_device_id: str = Header(...)):
     if res.deleted_count == 0:
         raise HTTPException(404, "Post not found or not yours")
     return {"ok": True}
+
+# Post reactions (Hug / Fug) — mirrors music reactions
+@api_router.post("/posts/{post_id}/reaction")
+async def react_post(post_id: str, payload: ReactionCreate):
+    post = await db.posts.find_one({"id": post_id}, {"_id": 0})
+    if not post:
+        raise HTTPException(404, "Post not found")
+    existing = await db.post_reactions.find_one(
+        {"post_id": post_id, "device_id": payload.device_id}
+    )
+    if existing:
+        if existing["type"] == payload.type:
+            await db.post_reactions.delete_one(
+                {"post_id": post_id, "device_id": payload.device_id}
+            )
+            await db.posts.update_one(
+                {"id": post_id}, {"$inc": {f"{existing['type']}s": -1}}
+            )
+            return {"ok": True, "action": "removed", "type": existing["type"]}
+        else:
+            await db.post_reactions.update_one(
+                {"post_id": post_id, "device_id": payload.device_id},
+                {"$set": {"type": payload.type, "updated_at": iso(now_utc())}},
+            )
+            await db.posts.update_one(
+                {"id": post_id},
+                {"$inc": {f"{existing['type']}s": -1, f"{payload.type}s": 1}},
+            )
+            return {"ok": True, "action": "switched", "type": payload.type}
+    else:
+        await db.post_reactions.insert_one({
+            "id": str(uuid.uuid4()),
+            "post_id": post_id,
+            "device_id": payload.device_id,
+            "type": payload.type,
+            "created_at": iso(now_utc()),
+        })
+        await db.posts.update_one(
+            {"id": post_id}, {"$inc": {f"{payload.type}s": 1}}
+        )
+        return {"ok": True, "action": "added", "type": payload.type}
+
+@api_router.get("/posts/{post_id}/my-reaction")
+async def my_post_reaction(post_id: str, device_id: str):
+    rec = await db.post_reactions.find_one(
+        {"post_id": post_id, "device_id": device_id}, {"_id": 0}
+    )
+    return {"type": rec["type"] if rec else None}
 
 # ============================================================
 # Music
@@ -398,9 +448,24 @@ async def startup():
     await db.music_posts.create_index("created_at")
     await db.music_posts.create_index("expires_at")
     await db.music_reactions.create_index([("music_id", 1), ("device_id", 1)], unique=True)
+    await db.post_reactions.create_index([("post_id", 1), ("device_id", 1)], unique=True)
     await db.reports.create_index([("target_type", 1), ("target_id", 1), ("device_id", 1)], unique=True)
     # One-time cleanup: drop legacy music posts that don't have link_url
     await db.music_posts.delete_many({"link_url": {"$exists": False}})
+    # Backfill hugs/fugs on legacy posts so all rows have the fields populated
+    import random as _rnd
+    legacy_cursor = db.posts.find(
+        {"$or": [{"hugs": {"$exists": False}}, {"fugs": {"$exists": False}}]},
+        {"_id": 1, "is_bot": 1},
+    )
+    async for p in legacy_cursor:
+        is_bot = bool(p.get("is_bot"))
+        # Bot posts get a believable lived-in count, human posts start at 0
+        hugs = _rnd.randint(3, 84) if is_bot else 0
+        fugs = _rnd.randint(0, max(2, hugs // 12)) if is_bot else 0
+        await db.posts.update_one(
+            {"_id": p["_id"]}, {"$set": {"hugs": hugs, "fugs": fugs}}
+        )
     # Launch background bot loop
     app.state.bot_task = asyncio.create_task(bot_loop(db))
 

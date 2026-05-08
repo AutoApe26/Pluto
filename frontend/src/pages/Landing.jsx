@@ -18,6 +18,7 @@ import {
   Heart,
   ThumbsDown,
   MoreHorizontal,
+  Sparkles,
 } from "lucide-react";
 import { CosmicBg } from "../components/CosmicBg";
 import { PlutoSphere } from "../components/Logo";
@@ -210,6 +211,8 @@ export const Landing = ({ onCreate }) => {
             const Icon = TOPIC_ICONS[p.topic] || Eye;
             const color = TOPIC_COLORS[p.topic] || "#00F0FF";
             const label = TOPIC_LABEL[p.topic] || p.topic;
+            const hugs = p.hugs ?? 0;
+            const fugs = p.fugs ?? 0;
             return (
               <motion.div
                 key={p.id}
@@ -223,18 +226,18 @@ export const Landing = ({ onCreate }) => {
                   (window.location.href = `/topics?topic=${p.topic}`)
                 }
               >
-                {/* Top row: category pill + arrow */}
+                {/* Top row: meta + arrow */}
                 <div className="flex items-center justify-between gap-3">
-                  <div
-                    className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 border bg-black/30"
-                    style={{
-                      color,
-                      borderColor: `${color}40`,
-                    }}
-                  >
-                    <Icon className="w-3 h-3" />
-                    <span className="text-[10px] font-mono uppercase tracking-wider">
-                      {label}
+                  <div className="flex items-center gap-2 min-w-0">
+                    <Icon className="w-4 h-4 shrink-0" style={{ color }} />
+                    {p.sudo_name && (
+                      <span className="text-[11px] font-mono text-zinc-400 truncate">
+                        {p.sudo_name}
+                      </span>
+                    )}
+                    <span className="text-zinc-700">·</span>
+                    <span className="text-[10px] font-mono uppercase tracking-wider text-zinc-500">
+                      anon
                     </span>
                   </div>
                   <div className="flex items-center gap-3">
@@ -247,10 +250,40 @@ export const Landing = ({ onCreate }) => {
                   </div>
                 </div>
 
-                {/* Big monospace content with key-phrase highlights */}
-                <p className="mt-4 sm:mt-5 font-mono text-white text-xl sm:text-3xl leading-snug tracking-tight whitespace-pre-wrap break-words">
+                {/* BIG topic name in monospace */}
+                <h3
+                  className="mt-3 font-mono uppercase tracking-tight text-3xl sm:text-5xl leading-none break-words"
+                  style={{
+                    color,
+                    textShadow: `0 0 20px ${color}55, 0 0 40px ${color}22`,
+                  }}
+                >
+                  #{label}
+                </h3>
+
+                {/* Smaller content with key-phrase highlights */}
+                <p className="mt-3 sm:mt-4 font-mono text-zinc-200 text-[13px] sm:text-sm leading-relaxed whitespace-pre-wrap break-words line-clamp-3">
                   {highlightContent(p.content, "#B026FF")}
                 </p>
+
+                {/* Hugs / Fugs strip */}
+                <div className="mt-4 flex items-center justify-between text-[11px] font-mono">
+                  <div className="flex items-center gap-3">
+                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-pink-500/10 border border-pink-500/30 text-pink-300">
+                      <Heart className="w-3 h-3 fill-current" />
+                      <span className="font-semibold">{hugs}</span>
+                      <span className="opacity-70">HUG</span>
+                    </span>
+                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-zinc-800/60 border border-zinc-700/60 text-zinc-300">
+                      <ThumbsDown className="w-3 h-3" />
+                      <span className="font-semibold">{fugs}</span>
+                      <span className="opacity-70">FUG</span>
+                    </span>
+                  </div>
+                  <span className="text-zinc-600 hidden sm:inline-flex items-center gap-1">
+                    <Sparkles className="w-3 h-3" /> tap to open
+                  </span>
+                </div>
               </motion.div>
             );
           })}

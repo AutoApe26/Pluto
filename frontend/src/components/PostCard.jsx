@@ -1,8 +1,10 @@
-import React from "react";
+import React, { useState, useEffect } from "react";
 import { motion } from "framer-motion";
+import { Heart, ThumbsDown } from "lucide-react";
 import { TimeRemainingBadge } from "./TimeRemainingBadge";
 import { ReportButton } from "./ReportButton";
 import { relativeTime } from "../lib/format";
+import { api } from "../lib/api";
 
 const TOPIC_COLORS = {
   crypto: "#F7931A",
@@ -10,6 +12,7 @@ const TOPIC_COLORS = {
   memes: "#FFCC00",
   "mental-health": "#FF6B9D",
   "tell-anything": "#00F0FF",
+  rant: "#00F0FF",
   stories: "#B026FF",
   confession: "#FF3B30",
   music: "#7B61FF",
@@ -17,6 +20,58 @@ const TOPIC_COLORS = {
 
 export const PostCard = ({ post, index = 0 }) => {
   const color = TOPIC_COLORS[post.topic] || "#00F0FF";
+  const [hugs, setHugs] = useState(post.hugs ?? 0);
+  const [fugs, setFugs] = useState(post.fugs ?? 0);
+  const [myReaction, setMyReaction] = useState(null);
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    api
+      .myPostReaction(post.id)
+      .then((r) => !cancelled && setMyReaction(r?.type ?? null))
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [post.id]);
+
+  const react = async (e, type) => {
+    e.stopPropagation();
+    if (busy) return;
+    setBusy(true);
+    // optimistic
+    const prev = { hugs, fugs, myReaction };
+    if (myReaction === type) {
+      // toggle off
+      if (type === "hug") setHugs((n) => Math.max(0, n - 1));
+      else setFugs((n) => Math.max(0, n - 1));
+      setMyReaction(null);
+    } else if (myReaction && myReaction !== type) {
+      // switch
+      if (myReaction === "hug") setHugs((n) => Math.max(0, n - 1));
+      else setFugs((n) => Math.max(0, n - 1));
+      if (type === "hug") setHugs((n) => n + 1);
+      else setFugs((n) => n + 1);
+      setMyReaction(type);
+    } else {
+      // add
+      if (type === "hug") setHugs((n) => n + 1);
+      else setFugs((n) => n + 1);
+      setMyReaction(type);
+    }
+    try {
+      await api.reactPost(post.id, type);
+    } catch (err) {
+      // revert on error
+      setHugs(prev.hugs);
+      setFugs(prev.fugs);
+      setMyReaction(prev.myReaction);
+    } finally {
+      setBusy(false);
+    }
+  };
+
   return (
     <motion.article
       initial={{ opacity: 0, y: 12 }}
@@ -62,6 +117,44 @@ export const PostCard = ({ post, index = 0 }) => {
           />
         </div>
       )}
+
+      {/* Reaction strip — Hug / Fug */}
+      <div className="mt-4 flex items-center gap-2">
+        <button
+          type="button"
+          disabled={busy}
+          onClick={(e) => react(e, "hug")}
+          data-testid={`hug-btn-${post.id}`}
+          className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-mono border transition active:scale-95 ${
+            myReaction === "hug"
+              ? "bg-pink-500/20 border-pink-400/60 text-pink-200 shadow-[0_0_18px_rgba(236,72,153,0.35)]"
+              : "bg-pink-500/5 border-pink-500/25 text-pink-300 hover:bg-pink-500/10"
+          }`}
+        >
+          <Heart
+            className={`w-3.5 h-3.5 ${myReaction === "hug" ? "fill-current" : ""}`}
+          />
+          <span className="font-semibold">{hugs}</span>
+          <span className="opacity-70 uppercase">Hug</span>
+        </button>
+        <button
+          type="button"
+          disabled={busy}
+          onClick={(e) => react(e, "fug")}
+          data-testid={`fug-btn-${post.id}`}
+          className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-mono border transition active:scale-95 ${
+            myReaction === "fug"
+              ? "bg-zinc-700 border-zinc-500 text-zinc-100"
+              : "bg-zinc-800/40 border-zinc-700/60 text-zinc-300 hover:bg-zinc-800/70"
+          }`}
+        >
+          <ThumbsDown
+            className={`w-3.5 h-3.5 ${myReaction === "fug" ? "fill-current" : ""}`}
+          />
+          <span className="font-semibold">{fugs}</span>
+          <span className="opacity-70 uppercase">Fug</span>
+        </button>
+      </div>
 
       <div className="mt-4 flex items-center justify-between text-xs text-zinc-500">
         <span className="font-mono">

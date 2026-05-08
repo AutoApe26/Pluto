@@ -20,6 +20,14 @@ export const api = {
     client
       .post("/posts", { ...data, device_id: getDeviceId() })
       .then((r) => r.data),
+  reactPost: (id, type) =>
+    client
+      .post(`/posts/${id}/reaction`, { type, device_id: getDeviceId() })
+      .then((r) => r.data),
+  myPostReaction: (id) =>
+    client
+      .get(`/posts/${id}/my-reaction`, { params: { device_id: getDeviceId() } })
+      .then((r) => r.data),
 
   // music
   music: () => client.get("/music").then((r) => r.data),
