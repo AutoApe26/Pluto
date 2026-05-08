@@ -74,6 +74,43 @@ const FALLBACK_POSTS = [
   { id: "f8", topic: "music", content: "midnight playlists hit different in winter." },
 ];
 
+// Deterministic key-phrase highlighter — picks 2–3 longer words (or 2-word phrases)
+// from the content and wraps them in a purple span. Stable for the same input.
+const STOP_WORDS = new Set([
+  "the","and","for","with","from","that","this","they","them","their","there",
+  "have","has","had","but","not","you","your","are","was","were","will","would",
+  "could","should","just","like","than","then","what","when","where","which",
+  "into","over","also","after","before","about","again","still","some","such",
+  "very","much","more","most","only","even","being","because","while","since",
+  "every","always","never","often","really","actually","anyone","everyone",
+  "something","anything","nothing","someone","another","other","these","those",
+]);
+
+const highlightContent = (content, color) => {
+  if (!content) return null;
+  const words = content.split(/(\s+)/); // keep whitespace tokens
+  // candidates: meaningful words length >= 5, not stopwords
+  const candidates = [];
+  words.forEach((w, idx) => {
+    const clean = w.toLowerCase().replace(/[^a-z0-9']/g, "");
+    if (clean.length >= 5 && !STOP_WORDS.has(clean)) {
+      candidates.push({ idx, score: clean.length + (clean.length > 7 ? 3 : 0) });
+    }
+  });
+  // deterministic pick: top by score, evenly spaced
+  candidates.sort((a, b) => b.score - a.score);
+  const picked = new Set(candidates.slice(0, 3).map((c) => c.idx));
+  return words.map((w, idx) =>
+    picked.has(idx) ? (
+      <span key={idx} style={{ color, textShadow: `0 0 12px ${color}55` }}>
+        {w}
+      </span>
+    ) : (
+      <React.Fragment key={idx}>{w}</React.Fragment>
+    )
+  );
+};
+
 export const Landing = ({ onCreate }) => {
   const [trending, setTrending] = useState([]);
   const [music, setMusic] = useState([]);
@@ -210,9 +247,9 @@ export const Landing = ({ onCreate }) => {
                   </div>
                 </div>
 
-                {/* Big monospace content */}
-                <p className="mt-4 sm:mt-5 font-mono text-white text-lg sm:text-2xl leading-snug tracking-tight line-clamp-2">
-                  {p.content}
+                {/* Big monospace content with key-phrase highlights */}
+                <p className="mt-4 sm:mt-5 font-mono text-white text-xl sm:text-3xl leading-snug tracking-tight whitespace-pre-wrap break-words">
+                  {highlightContent(p.content, "#B026FF")}
                 </p>
               </motion.div>
             );

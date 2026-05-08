@@ -186,6 +186,51 @@ body {
     animation: pulseSoft 2.4s ease-in-out infinite;
 }
 
+/* Pluto orb breathing glow — dim & bright pulse */
+@keyframes plutoBreath {
+    0%,
+    100% {
+        opacity: 0.55;
+        transform: translateX(-50%) scale(0.92);
+    }
+    50% {
+        opacity: 1;
+        transform: translateX(-50%) scale(1.08);
+    }
+}
+.pluto-breath {
+    animation: plutoBreath 3.6s ease-in-out infinite;
+}
+
+@keyframes plutoOrbBreath {
+    0%,
+    100% {
+        filter: drop-shadow(0 6px 16px rgba(60, 180, 255, 0.25))
+            drop-shadow(0 0 14px rgba(176, 38, 255, 0.18));
+    }
+    50% {
+        filter: drop-shadow(0 10px 30px rgba(60, 180, 255, 0.65))
+            drop-shadow(0 0 28px rgba(176, 38, 255, 0.45));
+    }
+}
+.pluto-orb-breath {
+    animation: plutoOrbBreath 3.6s ease-in-out infinite;
+}
+
+@keyframes plutoLogoBreath {
+    0%,
+    100% {
+        filter: drop-shadow(0 0 4px rgba(60, 180, 255, 0.3));
+    }
+    50% {
+        filter: drop-shadow(0 0 12px rgba(60, 180, 255, 0.8))
+            drop-shadow(0 0 6px rgba(176, 38, 255, 0.5));
+    }
+}
+.pluto-logo-breath {
+    animation: plutoLogoBreath 3.2s ease-in-out infinite;
+}
+
 /* Audio waveform */
 .wave-bar {
     width: 3px;
