@@ -1,8 +1,9 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { X, Send } from "lucide-react";
+import { X, ImagePlus, Send, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { api } from "../lib/api";
+import { fileToDataUrl } from "../lib/format";
 
 const MAX_LEN = 1000;
 
@@ -10,15 +11,35 @@ export const CreatePostModal = ({ open, onClose, topics, onCreated, defaultTopic
   const [content, setContent] = useState("");
   const [topic, setTopic] = useState(defaultTopic || "rant");
   const [sudoName, setSudoName] = useState("");
+  const [image, setImage] = useState(null);
   const [busy, setBusy] = useState(false);
+  const fileRef = useRef();
 
   useEffect(() => {
     if (open) {
       setContent("");
       setSudoName("");
+      setImage(null);
       setTopic(defaultTopic || "rant");
     }
   }, [open, defaultTopic]);
+
+  const onFile = async (e) => {
+    const f = e.target.files?.[0];
+    if (!f) return;
+    if (f.size > 4 * 1024 * 1024) {
+      toast.error("Max image size is 4MB");
+      e.target.value = "";
+      return;
+    }
+    if (!/^image\/(png|jpe?g|webp)$/i.test(f.type)) {
+      toast.error("Use a JPEG, PNG or WEBP image");
+      e.target.value = "";
+      return;
+    }
+    setImage(await fileToDataUrl(f));
+    e.target.value = "";
+  };
 
   const submit = async () => {
     if (!content.trim()) {
@@ -30,7 +51,7 @@ export const CreatePostModal = ({ open, onClose, topics, onCreated, defaultTopic
       const post = await api.createPost({
         content,
         topic,
-        image: null,
+        image,
         sudo_name: sudoName.trim() || null,
       });
       toast.success("Posted. It vanishes in 24h.");
@@ -166,12 +187,57 @@ export const CreatePostModal = ({ open, onClose, topics, onCreated, defaultTopic
               />
             </div>
 
+            <div className="mt-4">
+              <label className="text-[10px] uppercase tracking-[0.2em] text-zinc-500 font-mono">
+                Image (optional)
+              </label>
+              <input
+                ref={fileRef}
+                type="file"
+                accept="image/png,image/jpeg,image/webp"
+                className="hidden"
+                onChange={onFile}
+                data-testid="create-post-image-input"
+              />
+              {image ? (
+                <div className="mt-2 relative rounded-2xl overflow-hidden border border-white/10">
+                  <img
+                    src={image}
+                    alt=""
+                    className="w-full max-h-64 object-cover"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setImage(null)}
+                    className="absolute top-2 right-2 p-1.5 rounded-full bg-black/70 text-white hover:bg-black/90"
+                    data-testid="remove-image"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => fileRef.current?.click()}
+                  data-testid="create-post-image-btn"
+                  className="mt-2 w-full rounded-2xl border border-dashed border-white/15 py-6 flex flex-col items-center gap-1.5 text-zinc-400 hover:text-white hover:border-purple-400/40 transition"
+                >
+                  <ImagePlus className="w-6 h-6" />
+                  <span className="text-sm">Tap to add an image</span>
+                  <span className="text-[10px] text-zinc-600 font-mono">
+                    PNG · JPEG · WEBP · max 4MB
+                  </span>
+                </button>
+              )}
+            </div>
+
             <p className="mt-5 text-[11px] leading-relaxed text-zinc-500">
-              Posts vanish in 24h. Text only — no images, no links. Blocked:
-              illegal content, hate/harassment, doxxing, misinformation,
-              content involving minors, piracy, scams/wallet-drainers, terror
-              promotion, sexual content, and self-harm. Same content max
-              5×/24h.
+              Posts vanish in 24h. No links. Images are scanned — nudity,
+              violence, hate symbols, drugs, weapons, and self-harm imagery
+              are blocked. Other blocked text: hate/harassment, doxxing,
+              misinformation, content involving minors, piracy,
+              scams/wallet-drainers, terror promotion, sexual content,
+              self-harm. Same content max 5×/24h.
             </p>
 
             <button

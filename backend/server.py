@@ -13,6 +13,7 @@ from datetime import datetime, timezone, timedelta
 
 from bot_service import bot_loop, run_once, engagement_loop
 from moderation import violation_for, normalized_for_dedup
+from image_moderation import moderate_image_data_url, category_label
 
 
 ROOT_DIR = Path(__file__).parent
@@ -171,16 +172,20 @@ async def create_post(payload: PostCreate):
 
     content = payload.content.strip()
 
-    # Rule: no image uploads. Anonymous platform — we don't run image moderation
-    # so we don't accept user images at all. (Music posts still work via
-    # Spotify/YouTube URL embeds, which carry their own thumbnails.)
-    if payload.image:
-        raise HTTPException(400, "Images aren't allowed on Pluto.")
-
-    # Rule: no links, no blocked categories
+    # Rule: text content must pass moderation (no links, blocked categories)
     reason = violation_for(content)
     if reason:
         raise HTTPException(400, reason)
+
+    # Rule: image (if attached) must pass Gemini Vision moderation
+    image_to_store: Optional[str] = None
+    if payload.image:
+        verdict = await moderate_image_data_url(payload.image)
+        if not verdict.safe:
+            label = category_label(verdict.category)
+            extra = f" — {verdict.reason}" if verdict.reason else ""
+            raise HTTPException(400, f"Image blocked: {label}.{extra}")
+        image_to_store = payload.image
 
     # Rule: same content max 5x / 24h (per device) + global anti-spam cap
     one_day_ago = iso(now_utc() - timedelta(hours=24))
@@ -217,7 +222,7 @@ async def create_post(payload: PostCreate):
         id=str(uuid.uuid4()),
         content=content,
         topic=payload.topic,
-        image=payload.image,
+        image=image_to_store,
         sudo_name=(payload.sudo_name or "").strip()[:24] or None,
         device_id=payload.device_id,
         created_at=iso(created),
