@@ -107,17 +107,6 @@ export const PostCard = ({ post, index = 0 }) => {
         {post.content}
       </p>
 
-      {post.image && (
-        <div className="mt-4 rounded-2xl overflow-hidden border border-white/5">
-          <img
-            src={post.image}
-            alt=""
-            className="w-full max-h-[60vh] object-cover"
-            loading="lazy"
-          />
-        </div>
-      )}
-
       {/* Reaction strip — Hug / Fug */}
       <div className="mt-4 flex items-center gap-2">
         <button

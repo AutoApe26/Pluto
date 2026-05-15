@@ -11,7 +11,7 @@ import uuid
 import asyncio
 from datetime import datetime, timezone, timedelta
 
-from bot_service import bot_loop, run_once
+from bot_service import bot_loop, run_once, engagement_loop
 from moderation import violation_for, normalized_for_dedup
 
 
@@ -170,6 +170,12 @@ async def create_post(payload: PostCreate):
         raise HTTPException(400, "Invalid topic")
 
     content = payload.content.strip()
+
+    # Rule: no image uploads. Anonymous platform — we don't run image moderation
+    # so we don't accept user images at all. (Music posts still work via
+    # Spotify/YouTube URL embeds, which carry their own thumbnails.)
+    if payload.image:
+        raise HTTPException(400, "Images aren't allowed on Pluto.")
 
     # Rule: no links, no blocked categories
     reason = violation_for(content)
@@ -517,8 +523,9 @@ async def startup():
             update["content_norm"] = normalized_for_dedup(p["content"])
         if update:
             await db.posts.update_one({"_id": p["_id"]}, {"$set": update})
-    # Launch background bot loop
+    # Launch background bot loops
     app.state.bot_task = asyncio.create_task(bot_loop(db))
+    app.state.engage_task = asyncio.create_task(engagement_loop(db))
 
 app.include_router(api_router)
 
