@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import { Heart, ThumbsDown } from "lucide-react";
+import { Heart, ThumbsDown, Share2 } from "lucide-react";
 import { TimeRemainingBadge } from "./TimeRemainingBadge";
 import { ReportButton } from "./ReportButton";
+import { ShareCardModal } from "./ShareCardModal";
 import { relativeTime } from "../lib/format";
 import { api } from "../lib/api";
 
@@ -24,6 +25,7 @@ export const PostCard = ({ post, index = 0 }) => {
   const [fugs, setFugs] = useState(post.fugs ?? 0);
   const [myReaction, setMyReaction] = useState(null);
   const [busy, setBusy] = useState(false);
+  const [shareOpen, setShareOpen] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -107,8 +109,22 @@ export const PostCard = ({ post, index = 0 }) => {
         {post.content}
       </p>
 
-      {/* Reaction strip — Hug / Fug */}
-      <div className="mt-4 flex items-center gap-2">
+      {post.image ? (
+        <div
+          className="mt-4 rounded-2xl overflow-hidden border border-white/10 bg-black/40"
+          data-testid={`post-image-${post.id}`}
+        >
+          <img
+            src={post.image}
+            alt=""
+            loading="lazy"
+            className="w-full max-h-[480px] object-cover"
+          />
+        </div>
+      ) : null}
+
+      {/* Reaction strip — Hug / Fug / Share */}
+      <div className="mt-4 flex items-center gap-2 flex-wrap">
         <button
           type="button"
           disabled={busy}
@@ -143,6 +159,19 @@ export const PostCard = ({ post, index = 0 }) => {
           <span className="font-semibold">{fugs}</span>
           <span className="opacity-70 uppercase">Fug</span>
         </button>
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            setShareOpen(true);
+          }}
+          data-testid={`share-btn-${post.id}`}
+          className="ml-auto inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-mono border bg-white/[0.04] border-white/15 text-zinc-300 hover:text-white hover:border-purple-400/40 hover:bg-purple-500/10 transition active:scale-95"
+          title="Share as pluck card"
+        >
+          <Share2 className="w-3.5 h-3.5" />
+          <span className="uppercase">Share</span>
+        </button>
       </div>
 
       <div className="mt-4 flex items-center justify-between text-xs text-zinc-500">
@@ -155,6 +184,12 @@ export const PostCard = ({ post, index = 0 }) => {
         </span>
         <ReportButton targetType="post" targetId={post.id} />
       </div>
+
+      <ShareCardModal
+        open={shareOpen}
+        onClose={() => setShareOpen(false)}
+        post={{ ...post, hugs, fugs }}
+      />
     </motion.article>
   );
 };
