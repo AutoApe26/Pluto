@@ -540,6 +540,7 @@ async def _post_music(db) -> bool:
             "is_bot": True,
             "source": "billboard-hot-100",
             "track_fp": fp,
+            "lang": "en",
         }
         await db.music_posts.insert_one(track)
         await db.bot_posted.insert_one({
@@ -613,32 +614,48 @@ HUG_PROB = 0.86
 
 
 async def _bump_collection(db, coll, post_field_id: str = "id"):
-    """Pick a few random recent items and add +1 hug or +1 fug to each."""
+    """Pick a few random recent items and add +1 hug or +1 fug to each.
+
+    We deliberately split the sample into two passes so manual (non-bot)
+    posts always get attention each cycle — without this split, bots
+    dominate the pool and human-posted content sits at 0 forever, which is
+    what makes the feed feel dead for actual posters.
+    """
     week_ago = _iso(_now_utc() - timedelta(days=2))  # active window
-    pipeline = [
-        {"$match": {
-            "created_at": {"$gte": week_ago},
-            "hidden": {"$ne": True},
-        }},
-        {"$sample": {"size": random.randint(2, 6)}},
-        {"$project": {"_id": 0, post_field_id: 1, "hugs": 1, "fugs": 1,
-                       "is_bot": 1, "device_id": 1}},
+    base_match = {
+        "created_at": {"$gte": week_ago},
+        "hidden": {"$ne": True},
+    }
+    pipelines = [
+        # Manual-only pass — guaranteed every cycle so human posts climb.
+        [
+            {"$match": {**base_match, "is_bot": {"$ne": True}}},
+            {"$sample": {"size": random.randint(3, 6)}},
+            {"$project": {"_id": 0, post_field_id: 1, "hugs": 1, "fugs": 1}},
+        ],
+        # General pass — adds engagement to bot posts too.
+        [
+            {"$match": base_match},
+            {"$sample": {"size": random.randint(2, 4)}},
+            {"$project": {"_id": 0, post_field_id: 1, "hugs": 1, "fugs": 1}},
+        ],
     ]
     try:
-        async for doc in coll.aggregate(pipeline):
-            pid = doc.get(post_field_id)
-            if not pid:
-                continue
-            cur_h = doc.get("hugs") or 0
-            cur_f = doc.get("fugs") or 0
-            # Bias toward hugs; very small chance of a fug
-            give_hug = random.random() < HUG_PROB
-            if give_hug and cur_h >= HUG_CAP:
-                continue
-            if (not give_hug) and cur_f >= FUG_CAP:
-                continue
-            field = "hugs" if give_hug else "fugs"
-            await coll.update_one({post_field_id: pid}, {"$inc": {field: 1}})
+        for pipeline in pipelines:
+            async for doc in coll.aggregate(pipeline):
+                pid = doc.get(post_field_id)
+                if not pid:
+                    continue
+                cur_h = doc.get("hugs") or 0
+                cur_f = doc.get("fugs") or 0
+                # Bias toward hugs; very small chance of a fug
+                give_hug = random.random() < HUG_PROB
+                if give_hug and cur_h >= HUG_CAP:
+                    continue
+                if (not give_hug) and cur_f >= FUG_CAP:
+                    continue
+                field = "hugs" if give_hug else "fugs"
+                await coll.update_one({post_field_id: pid}, {"$inc": {field: 1}})
     except Exception as e:
         logger.warning("engagement bump failed: %s", e)
 

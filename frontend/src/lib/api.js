@@ -30,6 +30,9 @@ export const api = {
       .then((r) => r.data),
   translatePost: (id) =>
     client.post(`/posts/${id}/translate`).then((r) => r.data),
+  translateMusic: (id) =>
+    client.post(`/music/${id}/translate`).then((r) => r.data),
+  getPost: (id) => client.get(`/posts/${id}`).then((r) => r.data),
 
   // music
   music: () => client.get("/music").then((r) => r.data),

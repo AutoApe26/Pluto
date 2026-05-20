@@ -96,6 +96,7 @@ class PostCreate(BaseModel):
     image: Optional[str] = None  # base64 data url
     sudo_name: Optional[str] = None
     device_id: str
+    is_lyrics: bool = False
 
 class Post(BaseModel):
     id: str
@@ -112,6 +113,7 @@ class Post(BaseModel):
     hidden: bool = False
     is_bot: bool = False
     lang: str = "en"
+    is_lyrics: bool = False
 
 class MusicCreate(BaseModel):
     link_url: str = Field(min_length=8, max_length=600)
@@ -144,6 +146,7 @@ class MusicPost(BaseModel):
     report_count: int = 0
     hidden: bool = False
     is_bot: bool = False
+    lang: str = "en"
 
 class ReactionCreate(BaseModel):
     device_id: str
@@ -197,6 +200,20 @@ async def trending_posts(limit: int = 5):
     cursor = db.posts.find({"hidden": False}, {"_id": 0}).sort("created_at", -1).limit(limit)
     return await cursor.to_list(length=limit)
 
+
+@api_router.get("/posts/{post_id}")
+async def get_post(post_id: str):
+    """Single post fetch — used by the per-post share page (/post/:id).
+    Returns the post even if it has expired? No — expired posts are deleted
+    on read. Hidden posts (3+ reports) are not exposed."""
+    await cleanup_expired()
+    post = await db.posts.find_one({"id": post_id, "hidden": False}, {"_id": 0})
+    if not post:
+        raise HTTPException(404, "Post not found")
+    post.pop("content_norm", None)
+    post.pop("translation_en", None)
+    return post
+
 @api_router.post("/posts", response_model=Post)
 async def create_post(payload: PostCreate):
     valid_slugs = {t["slug"] for t in TOPICS_SEED}
@@ -205,8 +222,14 @@ async def create_post(payload: PostCreate):
 
     content = payload.content.strip()
 
-    # Rule: text content must pass moderation (no links, blocked categories)
-    reason = violation_for(content)
+    # is_lyrics is only valid on the #music topic — silently drop the flag
+    # for any other topic so it can't be used to bypass moderation.
+    lyrics_mode = bool(payload.is_lyrics) and payload.topic == "music"
+
+    # Rule: text content must pass moderation (no links, blocked categories).
+    # When posting lyrics in #music, allow explicit sexual content but keep
+    # every other hard-block category enforced.
+    reason = violation_for(content, allow_sexual=lyrics_mode)
     if reason:
         raise HTTPException(400, reason)
 
@@ -261,6 +284,7 @@ async def create_post(payload: PostCreate):
         created_at=iso(created),
         expires_at=iso(expires),
         lang=_detect_lang(content),
+        is_lyrics=lyrics_mode,
     )
     doc = post.model_dump()
     doc["content_norm"] = norm  # for dedup queries — not exposed in response
@@ -413,10 +437,11 @@ async def upload_music(payload: MusicCreate):
     if not provider:
         raise HTTPException(400, "Only Spotify or YouTube links are supported.")
 
-    # Apply content rules to caption only (link is whitelisted spotify/youtube)
+    # Apply content rules to caption only (link is whitelisted spotify/youtube).
+    # Music captions can carry explicit lyrics when payload.is_lyrics is true.
     caption = (payload.caption or "").strip()
     if caption:
-        reason = violation_for(caption)
+        reason = violation_for(caption, allow_sexual=bool(payload.is_lyrics))
         if reason:
             raise HTTPException(400, reason)
 
@@ -442,6 +467,7 @@ async def upload_music(payload: MusicCreate):
         device_id=payload.device_id,
         created_at=iso(created),
         expires_at=iso(created + timedelta(hours=24)),
+        lang=_detect_lang(caption),
     )
     await db.music_posts.insert_one(track.model_dump())
     return track
@@ -484,6 +510,61 @@ async def react_music(music_id: str, payload: ReactionCreate):
 async def my_reaction(music_id: str, device_id: str):
     rec = await db.music_reactions.find_one({"music_id": music_id, "device_id": device_id}, {"_id": 0})
     return {"type": rec["type"] if rec else None}
+
+
+@api_router.post("/music/{music_id}/translate")
+async def translate_music(music_id: str):
+    """Translate a music post's caption to English via Gemini 2.5 Flash.
+    Cached on the music doc after first call."""
+    track = await db.music_posts.find_one({"id": music_id}, {"_id": 0})
+    if not track:
+        raise HTTPException(404, "Track not found")
+    caption = (track.get("caption") or "").strip()
+    if not caption:
+        return {"translation": "", "lang": track.get("lang", "en"), "cached": False}
+
+    cached = track.get("translation_en")
+    if cached:
+        return {
+            "translation": cached,
+            "lang": track.get("lang", "en"),
+            "cached": True,
+        }
+
+    if not EMERGENT_LLM_KEY or LlmChat is None:
+        raise HTTPException(503, "Translation service unavailable.")
+
+    try:
+        chat = LlmChat(
+            api_key=EMERGENT_LLM_KEY,
+            session_id=f"translate-music-{music_id}",
+            system_message=(
+                "You are a translation engine. Translate the user's text to "
+                "natural, casual English. Preserve emojis, slang vibe, line "
+                "breaks, and any musical lyric formatting. If the text is "
+                "already in English, return it unchanged. Do NOT add any "
+                "explanation, prefix, suffix, or quotes — output the "
+                "translation only."
+            ),
+        ).with_model("gemini", "gemini-2.5-flash")
+        msg = UserMessage(text=caption)
+        result = await chat.send_message(msg)
+        translation = (result or "").strip()
+        if len(translation) >= 2 and translation[0] in '"“' and translation[-1] in '"”':
+            translation = translation[1:-1].strip()
+    except Exception as e:
+        logger.exception("music translation failed: %s", e)
+        raise HTTPException(502, "Translation failed. Try again later.")
+
+    await db.music_posts.update_one(
+        {"id": music_id},
+        {"$set": {"translation_en": translation}},
+    )
+    return {
+        "translation": translation,
+        "lang": track.get("lang", "en"),
+        "cached": False,
+    }
 
 # ============================================================
 # Reports
@@ -623,6 +704,17 @@ async def startup():
             update["lang"] = _detect_lang(p["content"])
         if update:
             await db.posts.update_one({"_id": p["_id"]}, {"$set": update})
+    # Backfill lang on legacy music posts
+    music_legacy = db.music_posts.find(
+        {"lang": {"$exists": False}},
+        {"_id": 1, "caption": 1},
+    )
+    async for m in music_legacy:
+        cap = (m.get("caption") or "").strip()
+        await db.music_posts.update_one(
+            {"_id": m["_id"]},
+            {"$set": {"lang": _detect_lang(cap) if cap else "en"}},
+        )
     # Launch background bot loops
     app.state.bot_task = asyncio.create_task(bot_loop(db))
     app.state.engage_task = asyncio.create_task(engagement_loop(db))

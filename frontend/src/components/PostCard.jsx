@@ -137,6 +137,17 @@ export const PostCard = ({ post, index = 0 }) => {
         {post.content}
       </p>
 
+      {post.is_lyrics && (
+        <div
+          data-testid={`lyrics-badge-${post.id}`}
+          className="mt-2 inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-black border border-white/40 text-[10px] font-mono uppercase tracking-widest text-white self-start"
+          title="This post contains explicit lyrics."
+        >
+          <span className="px-1 py-[1px] bg-white text-black font-bold">PA</span>
+          Parental Advisory · Explicit Lyrics
+        </div>
+      )}
+
       {isForeign && (
         <div className="mt-2 flex flex-col gap-2">
           <button

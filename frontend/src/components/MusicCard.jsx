@@ -1,6 +1,14 @@
 import React, { useEffect, useState } from "react";
 import { motion } from "framer-motion";
-import { Play, Heart, ThumbsDown, ExternalLink, Music as MusicIcon } from "lucide-react";
+import {
+  Play,
+  Heart,
+  ThumbsDown,
+  ExternalLink,
+  Music as MusicIcon,
+  Languages,
+  Loader2,
+} from "lucide-react";
 import { toast } from "sonner";
 import { api } from "../lib/api";
 import { ReportButton } from "./ReportButton";
@@ -38,6 +46,35 @@ export const MusicCard = ({ track, index = 0 }) => {
   const [fugs, setFugs] = useState(track.fugs || 0);
   const [my, setMy] = useState(null);
   const [showEmbed, setShowEmbed] = useState(false);
+
+  // Caption translation state (Gemini 2.5 Flash, same as posts)
+  const captionForeign =
+    !!track.caption && track.lang && track.lang !== "en";
+  const [translation, setTranslation] = useState(null);
+  const [showTranslation, setShowTranslation] = useState(false);
+  const [translating, setTranslating] = useState(false);
+  const [translateErr, setTranslateErr] = useState(false);
+
+  const onTranslate = async (e) => {
+    e.stopPropagation();
+    if (translating) return;
+    if (translation) {
+      setShowTranslation((v) => !v);
+      return;
+    }
+    setTranslating(true);
+    setTranslateErr(false);
+    try {
+      const res = await api.translateMusic(track.id);
+      const t = (res?.translation || "").trim();
+      setTranslation(t || track.caption);
+      setShowTranslation(true);
+    } catch {
+      setTranslateErr(true);
+    } finally {
+      setTranslating(false);
+    }
+  };
 
   const cover =
     track.thumbnail || FALLBACK_COVERS[index % FALLBACK_COVERS.length];
@@ -138,6 +175,61 @@ export const MusicCard = ({ track, index = 0 }) => {
               {track.is_lyrics ? "♫ " : ""}
               {track.caption}
             </p>
+          )}
+
+          {track.is_lyrics && (
+            <div
+              data-testid={`music-lyrics-badge-${track.id}`}
+              className="mt-2 inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-black border border-white/40 text-[10px] font-mono uppercase tracking-widest text-white"
+              title="This track caption contains explicit lyrics."
+            >
+              <span className="px-1 py-[1px] bg-white text-black font-bold">PA</span>
+              Parental Advisory · Explicit
+            </div>
+          )}
+
+          {captionForeign && (
+            <div className="mt-2 flex flex-col gap-2">
+              <button
+                type="button"
+                onClick={onTranslate}
+                disabled={translating}
+                data-testid={`translate-music-btn-${track.id}`}
+                className="inline-flex items-center gap-1.5 self-start text-[11px] font-mono uppercase tracking-wider text-zinc-400 hover:text-purple-300 transition disabled:opacity-60"
+              >
+                {translating ? (
+                  <Loader2 className="w-3 h-3 animate-spin" />
+                ) : (
+                  <Languages className="w-3 h-3" />
+                )}
+                {translating
+                  ? "translating…"
+                  : translation
+                    ? showTranslation
+                      ? "hide translation"
+                      : "show translation"
+                    : "see translation"}
+                <span className="px-1.5 py-0.5 rounded-full bg-white/[0.05] border border-white/10 text-[9px] text-zinc-300">
+                  {track.lang}
+                </span>
+              </button>
+              {translateErr && (
+                <span className="text-[11px] text-rose-300/80">
+                  Couldn't translate — try again in a sec.
+                </span>
+              )}
+              {showTranslation && translation && (
+                <div
+                  data-testid={`music-translation-${track.id}`}
+                  className="rounded-2xl border border-purple-400/20 bg-purple-500/[0.06] px-3 py-2 text-[13px] leading-relaxed text-zinc-100 whitespace-pre-wrap break-words"
+                >
+                  <div className="text-[10px] font-mono uppercase tracking-wider text-purple-300/80 mb-1">
+                    English translation
+                  </div>
+                  {translation}
+                </div>
+              )}
+            </div>
           )}
 
           {track.tags?.length > 0 && (

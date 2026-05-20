@@ -12,6 +12,7 @@ export const CreatePostModal = ({ open, onClose, topics, onCreated, defaultTopic
   const [topic, setTopic] = useState(defaultTopic || "rant");
   const [sudoName, setSudoName] = useState("");
   const [image, setImage] = useState(null);
+  const [isLyrics, setIsLyrics] = useState(false);
   const [busy, setBusy] = useState(false);
   const fileRef = useRef();
 
@@ -20,9 +21,16 @@ export const CreatePostModal = ({ open, onClose, topics, onCreated, defaultTopic
       setContent("");
       setSudoName("");
       setImage(null);
+      setIsLyrics(false);
       setTopic(defaultTopic || "rant");
     }
   }, [open, defaultTopic]);
+
+  // is_lyrics is only meaningful for the #music topic — auto-clear if user
+  // picks a different topic so they can't bypass moderation by accident.
+  useEffect(() => {
+    if (topic !== "music" && isLyrics) setIsLyrics(false);
+  }, [topic, isLyrics]);
 
   const onFile = async (e) => {
     const f = e.target.files?.[0];
@@ -53,6 +61,7 @@ export const CreatePostModal = ({ open, onClose, topics, onCreated, defaultTopic
         topic,
         image,
         sudo_name: sudoName.trim() || null,
+        is_lyrics: topic === "music" ? isLyrics : false,
       });
       toast.success("Posted. It vanishes in 24h.");
       onCreated?.(post);
@@ -186,6 +195,50 @@ export const CreatePostModal = ({ open, onClose, topics, onCreated, defaultTopic
                 className="mt-2 w-full bg-white/[0.03] border border-white/10 rounded-2xl px-4 py-2.5 focus:border-purple-400/60 focus:outline-none transition"
               />
             </div>
+
+            {topic === "music" && (
+              <div className="mt-4">
+                <button
+                  type="button"
+                  onClick={() => setIsLyrics((v) => !v)}
+                  data-testid="lyrics-toggle"
+                  className={`w-full text-left rounded-2xl px-4 py-3 border transition ${
+                    isLyrics
+                      ? "bg-black border-white/40"
+                      : "bg-white/[0.03] border-white/10 hover:border-white/20"
+                  }`}
+                >
+                  <div className="flex items-center gap-3">
+                    <div
+                      className={`w-9 h-5 rounded-full relative transition ${
+                        isLyrics ? "bg-white" : "bg-white/15"
+                      }`}
+                    >
+                      <span
+                        className={`absolute top-0.5 w-4 h-4 rounded-full bg-black transition-all ${
+                          isLyrics ? "left-[18px]" : "left-0.5 bg-white/80"
+                        }`}
+                      />
+                    </div>
+                    <div className="flex-1">
+                      <div className="text-[12px] font-mono uppercase tracking-wider text-white flex items-center gap-2">
+                        I'm posting lyrics
+                        {isLyrics && (
+                          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-white text-black text-[9px] font-bold">
+                            PA · EXPLICIT
+                          </span>
+                        )}
+                      </div>
+                      <div className="text-[11px] text-zinc-400 mt-0.5">
+                        Toggling this on shows a "Parental Advisory" badge
+                        and allows explicit language for lyrics. Hate,
+                        doxxing, self-harm and other rules still apply.
+                      </div>
+                    </div>
+                  </div>
+                </button>
+              </div>
+            )}
 
             <div className="mt-4">
               <label className="text-[10px] uppercase tracking-[0.2em] text-zinc-500 font-mono">

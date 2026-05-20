@@ -291,11 +291,18 @@ def detect_link(text: str) -> bool:
     return bool(_URL_RE.search(text))
 
 
-def detect_blocked_category(text: str) -> Optional[str]:
-    """Return the human label of the first blocked category found, or None."""
+def detect_blocked_category(text: str, allow_sexual: bool = False) -> Optional[str]:
+    """Return the human label of the first blocked category found, or None.
+
+    If ``allow_sexual`` is true, the 'sexual content' category is skipped
+    (used for #music topic lyrics, where some adult language is fine but
+    hate/self-harm/doxxing/etc. must still be blocked).
+    """
     collapsed = _collapse(text)
     squashed = _squash(text)
     for label, prepped in _CATEGORIES_PREP:
+        if allow_sexual and label == "sexual content":
+            continue
         for pattern, sq in prepped:
             if pattern.search(collapsed):
                 return label
@@ -304,9 +311,14 @@ def detect_blocked_category(text: str) -> Optional[str]:
     return None
 
 
-def violation_for(text: str) -> Optional[str]:
-    """Return a user-facing reason if `text` violates the posting rules.
+def violation_for(text: str, allow_sexual: bool = False) -> Optional[str]:
+    """Return a user-facing reason if ``text`` violates the posting rules.
     Returns None if the post is OK to publish.
+
+    ``allow_sexual`` is intended for the #music topic lyrics path — explicit
+    lyrics are tolerated there but every other hard-block category (hate,
+    self-harm, doxxing, terror, minors, scams, piracy, misinformation,
+    links, morse code) is still enforced.
     """
     if not text or not text.strip():
         return None
@@ -314,7 +326,7 @@ def violation_for(text: str) -> Optional[str]:
         return "Links aren't allowed on Pluto."
     if detect_morse_code(text):
         return "Morse code isn't allowed on Pluto."
-    cat = detect_blocked_category(text)
+    cat = detect_blocked_category(text, allow_sexual=allow_sexual)
     if cat:
         return f"Blocked: {cat}."
     return None

@@ -10,6 +10,7 @@ import { Feed } from "./pages/Feed";
 import { MusicPage } from "./pages/Music";
 import { Moderation } from "./pages/Moderation";
 import { InfoPage } from "./pages/Info";
+import { PostPage } from "./pages/PostPage";
 import { api } from "./lib/api";
 
 function Shell() {
@@ -46,6 +47,7 @@ function Shell() {
             element={<Feed topics={topics} key={postsRefresh} />}
           />
           <Route path="/music" element={<MusicPage />} />
+          <Route path="/post/:id" element={<PostPage />} />
           <Route
             path="/info"
             element={<InfoPage onCreate={() => setCreateOpen(true)} />}

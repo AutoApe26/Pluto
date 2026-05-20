@@ -4,8 +4,8 @@ import { AnimatePresence, motion } from "framer-motion";
 import {
   X,
   Download,
-  Twitter,
   Facebook,
+  Instagram,
   Link as LinkIcon,
   Share2,
   Loader2,
@@ -13,6 +13,18 @@ import {
 import html2canvas from "html2canvas";
 import { toast } from "sonner";
 import { timeRemaining } from "../lib/format";
+
+// Lucide doesn't ship X/TikTok marks — inline tiny SVGs.
+const XMark = ({ className = "w-4 h-4" }) => (
+  <svg viewBox="0 0 24 24" className={className} fill="currentColor" aria-hidden>
+    <path d="M18.244 2H21l-6.52 7.45L22 22h-6.785l-4.78-6.45L4.8 22H2.044l6.97-7.96L2 2h6.91l4.32 5.86L18.244 2Zm-2.38 18h2.04L7.97 4H5.86l10.005 16Z" />
+  </svg>
+);
+const TikTokMark = ({ className = "w-4 h-4" }) => (
+  <svg viewBox="0 0 24 24" className={className} fill="currentColor" aria-hidden>
+    <path d="M19.59 6.69a4.83 4.83 0 0 1-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 0 1-5.2 1.74 2.89 2.89 0 0 1 2.31-4.64 2.93 2.93 0 0 1 .88.13V9.4a6.84 6.84 0 0 0-1-.05A6.33 6.33 0 0 0 5.8 20.1a6.34 6.34 0 0 0 10.86-4.43V8.42a8.16 8.16 0 0 0 4.77 1.53V6.5a4.85 4.85 0 0 1-1.84-.2Z" />
+  </svg>
+);
 
 const TOPIC_COLORS = {
   crypto: "#F7931A",
@@ -104,7 +116,12 @@ export const ShareCardModal = ({ open, onClose, post }) => {
   if (!post) return null;
   const color = TOPIC_COLORS[post.topic] || "#00F0FF";
   const author = post.sudo_name || `anon · ${post.device_id?.slice(-6) || ""}`;
-  const shareUrl = typeof window !== "undefined" ? window.location.origin : "";
+  // Direct link to the specific post — anyone with this URL can open it
+  // even if they aren't running the app yet.
+  const shareUrl =
+    typeof window !== "undefined"
+      ? `${window.location.origin}/post/${post.id}`
+      : "";
 
   const handleDownload = () => {
     if (!blob || !previewUrl) {
@@ -120,6 +137,27 @@ export const ShareCardModal = ({ open, onClose, post }) => {
     toast.success("Saved to your device");
   };
 
+  // Internal: download the PNG silently (used by Instagram/TikTok flow)
+  const silentDownload = () => {
+    if (!blob || !previewUrl) return false;
+    const a = document.createElement("a");
+    a.href = previewUrl;
+    a.download = `pluto-${post.id?.slice(0, 8) || "post"}.png`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    return true;
+  };
+
+  const copyToClipboard = async (text) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      return true;
+    } catch {
+      return false;
+    }
+  };
+
   const handleNativeShare = async () => {
     if (!blob) {
       toast.message("Still rendering — try again in a sec");
@@ -131,6 +169,7 @@ export const ShareCardModal = ({ open, onClose, post }) => {
     const shareData = {
       title: "Pluto",
       text: "Saw this on Pluto. Vanishes in 24h.",
+      url: shareUrl,
       files: [file],
     };
     try {
@@ -155,15 +194,12 @@ export const ShareCardModal = ({ open, onClose, post }) => {
   };
 
   const handleCopyLink = async () => {
-    try {
-      await navigator.clipboard.writeText(shareUrl);
-      toast.success("Link copied");
-    } catch {
-      toast.error("Couldn't copy link");
-    }
+    const ok = await copyToClipboard(shareUrl);
+    if (ok) toast.success("Post link copied — paste it anywhere");
+    else toast.error("Couldn't copy link");
   };
 
-  const handleTwitter = () => {
+  const handleX = () => {
     const text = encodeURIComponent("Saw this on Pluto. Vanishes in 24h.");
     const url = encodeURIComponent(shareUrl);
     window.open(
@@ -182,17 +218,51 @@ export const ShareCardModal = ({ open, onClose, post }) => {
     );
   };
 
-  return (
+  // Instagram & TikTok don't expose a web compose endpoint — best UX is to
+  // download the PNG, copy the post link, and open the platform so the user
+  // can paste/upload in one go.
+  const handleInstagram = async () => {
+    if (!blob) {
+      toast.message("Still rendering — try again in a sec");
+      return;
+    }
+    silentDownload();
+    await copyToClipboard(shareUrl);
+    toast.success("PNG saved + link copied. Upload it as your Story.");
+    setTimeout(() => {
+      window.open("https://www.instagram.com/", "_blank", "noopener,noreferrer");
+    }, 350);
+  };
+
+  const handleTikTok = async () => {
+    if (!blob) {
+      toast.message("Still rendering — try again in a sec");
+      return;
+    }
+    silentDownload();
+    await copyToClipboard(shareUrl);
+    toast.success("PNG saved + link copied. Upload it on TikTok.");
+    setTimeout(() => {
+      window.open("https://www.tiktok.com/upload", "_blank", "noopener,noreferrer");
+    }, 350);
+  };
+
+  // Render: createPortal wraps the WHOLE AnimatePresence so the modal
+  // escapes the framer-motion transformed parent (PostCard's motion.article)
+  // that was previously trapping it inside a sub-stacking-context. The
+  // earlier `<AnimatePresence>{createPortal(...)}</AnimatePresence>` shape
+  // confused AnimatePresence's child tracking and the modal never mounted.
+  if (typeof document === "undefined") return null;
+  return createPortal(
     <AnimatePresence>
-      {open && typeof document !== "undefined"
-        ? createPortal(
-            <motion.div
-              className="fixed inset-0 z-[9999] flex items-end sm:items-center justify-center"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              data-testid="share-card-modal"
-            >
+      {open ? (
+        <motion.div
+          className="fixed inset-0 z-[9999] flex items-end sm:items-center justify-center"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          data-testid="share-card-modal"
+        >
           {/* Off-screen full-size card for html2canvas */}
           <div
             aria-hidden
@@ -285,42 +355,91 @@ export const ShareCardModal = ({ open, onClose, post }) => {
                 <Share2 className="w-4 h-4" />
                 Share…
               </button>
-              <button
-                onClick={handleTwitter}
-                data-testid="share-twitter-btn"
-                className="inline-flex items-center justify-center gap-2 rounded-full py-3 text-sm font-medium text-white bg-white/[0.06] border border-white/10 hover:bg-white/[0.1] transition"
-              >
-                <Twitter className="w-4 h-4" />
-                Post to X
-              </button>
-              <button
-                onClick={handleFacebook}
-                data-testid="share-facebook-btn"
-                className="inline-flex items-center justify-center gap-2 rounded-full py-3 text-sm font-medium text-white bg-white/[0.06] border border-white/10 hover:bg-white/[0.1] transition"
-              >
-                <Facebook className="w-4 h-4" />
-                Share to FB
-              </button>
-              <button
-                onClick={handleCopyLink}
-                data-testid="share-copy-link"
-                className="col-span-2 inline-flex items-center justify-center gap-2 rounded-full py-2.5 text-xs font-mono text-zinc-300 bg-white/[0.03] border border-white/10 hover:text-white hover:border-white/20 transition"
-              >
-                <LinkIcon className="w-3.5 h-3.5" />
-                Copy app link
-              </button>
             </div>
 
+            <div className="mt-3">
+              <div className="text-[10px] font-mono uppercase tracking-[0.2em] text-zinc-500 mb-2">
+                Share to
+              </div>
+              <div className="grid grid-cols-4 gap-2">
+                <button
+                  onClick={handleX}
+                  data-testid="share-x-btn"
+                  title="Post on X"
+                  className="flex flex-col items-center justify-center gap-1 py-3 rounded-2xl bg-white/[0.05] border border-white/10 hover:bg-white/[0.1] hover:border-white/25 text-white transition active:scale-95"
+                >
+                  <XMark className="w-5 h-5" />
+                  <span className="text-[10px] font-mono uppercase tracking-wider">
+                    X
+                  </span>
+                </button>
+                <button
+                  onClick={handleInstagram}
+                  disabled={!blob}
+                  data-testid="share-instagram-btn"
+                  title="Share to Instagram"
+                  className="flex flex-col items-center justify-center gap-1 py-3 rounded-2xl border transition active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed text-white"
+                  style={{
+                    background:
+                      "linear-gradient(135deg, rgba(225,48,108,0.20) 0%, rgba(245,133,41,0.18) 50%, rgba(64,93,230,0.20) 100%)",
+                    borderColor: "rgba(225,48,108,0.45)",
+                  }}
+                >
+                  <Instagram className="w-5 h-5" />
+                  <span className="text-[10px] font-mono uppercase tracking-wider">
+                    Instagram
+                  </span>
+                </button>
+                <button
+                  onClick={handleTikTok}
+                  disabled={!blob}
+                  data-testid="share-tiktok-btn"
+                  title="Share to TikTok"
+                  className="flex flex-col items-center justify-center gap-1 py-3 rounded-2xl bg-white/[0.05] border border-white/10 hover:bg-white/[0.1] hover:border-white/25 text-white transition active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <TikTokMark className="w-5 h-5" />
+                  <span className="text-[10px] font-mono uppercase tracking-wider">
+                    TikTok
+                  </span>
+                </button>
+                <button
+                  onClick={handleFacebook}
+                  data-testid="share-facebook-btn"
+                  title="Share to Facebook"
+                  className="flex flex-col items-center justify-center gap-1 py-3 rounded-2xl bg-[rgba(24,119,242,0.12)] border border-[rgba(24,119,242,0.35)] hover:bg-[rgba(24,119,242,0.22)] text-white transition active:scale-95"
+                >
+                  <Facebook className="w-5 h-5" />
+                  <span className="text-[10px] font-mono uppercase tracking-wider">
+                    Facebook
+                  </span>
+                </button>
+              </div>
+            </div>
+
+            <button
+              onClick={handleCopyLink}
+              data-testid="share-copy-link"
+              className="mt-3 w-full inline-flex items-center justify-between gap-2 rounded-2xl px-4 py-3 text-xs font-mono text-zinc-300 bg-white/[0.04] border border-white/10 hover:text-white hover:border-purple-400/40 hover:bg-purple-500/10 transition"
+            >
+              <span className="flex items-center gap-2">
+                <LinkIcon className="w-3.5 h-3.5" />
+                <span className="uppercase tracking-wider">Copy post link</span>
+              </span>
+              <span className="truncate max-w-[60%] text-zinc-500 text-[10px]">
+                {shareUrl.replace(/^https?:\/\//, "")}
+              </span>
+            </button>
+
             <p className="mt-3 text-[11px] leading-relaxed text-zinc-500">
-              Tip: on Instagram, download the PNG then upload it as a Story.
-              Tag <span className="font-mono text-zinc-300">$PNF</span>.
+              Instagram & TikTok don't allow auto-uploads from the web —
+              we'll save the PNG and copy the post link so you can paste it
+              into your Story or video caption.
             </p>
           </motion.div>
-        </motion.div>,
-            document.body,
-          )
-        : null}
-    </AnimatePresence>
+        </motion.div>
+      ) : null}
+    </AnimatePresence>,
+    document.body,
   );
 };
 
