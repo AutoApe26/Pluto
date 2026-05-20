@@ -102,10 +102,10 @@
 # Testing Data - Main Agent and testing sub agent both should log testing data below this section
 #====================================================================================================
 
-user_problem_statement: "Test the Pluto backend's content moderation rules and the same-content rate limit on POST /api/posts. Test moderation rule enforcement, legitimate content passing, same-content rate limiting (5×/24h), reaction toggle/switch functionality, and bot human names verification."
+user_problem_statement: "Add features to Pluto: (1) Fix share modal — pluck card was appearing behind the post due to transformed parent stacking context. (2) Block Morse code in posts; keep link blocking for user posts; bots must not post any links. (3) Add language detection on post create + on-demand English translation via Gemini 2.5 Flash with caching."
 
 backend:
-  - task: "Content Moderation - Self-harm Detection"
+  - task: "Morse code detection in posts"
     implemented: true
     working: true
     file: "/app/backend/moderation.py"
@@ -113,131 +113,14 @@ backend:
     priority: "high"
     needs_retesting: false
     status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "Added detect_morse_code() in moderation.py and wired into violation_for(). Should block content like '... --- ...' (SOS) or any sequence of 3+ dot/dash groups separated by whitespace or '/'. Should NOT block ordinary text with a few dots/dashes."
       - working: true
         agent: "testing"
-        comment: "Tested 5 self-harm phrases including leetspeak and punctuation bypasses. All correctly blocked with 'Blocked: self-harm.' message. Phrases tested: 'I want to die tonight', 'going to kill myself', 'k!ll myself', 'k.i.l.l m.y.s.e.l.f', 'kiiillll myselfffff'. All returned HTTP 400 with correct error detail."
+        comment: "✅ VERIFIED - All 5 morse code tests passed. (1) SOS '... --- ...' correctly blocked with 'Morse code isn't allowed on Pluto.' (2) Hello world morse '.... . .-.. .-.. --- / .-- --- .-. .-.. -..' correctly blocked. (3) Mixed morse+text '... --- ... help me please' correctly blocked. (4) Normal text with dashes 'the score was 3-2 and i was sad...' correctly allowed (NOT blocked). (5) Ellipses 'yes... maybe... no...' correctly allowed. Morse detection working perfectly."
 
-  - task: "Content Moderation - Hate/Harassment Detection"
-    implemented: true
-    working: true
-    file: "/app/backend/moderation.py"
-    stuck_count: 0
-    priority: "high"
-    needs_retesting: false
-    status_history:
-      - working: true
-        agent: "testing"
-        comment: "Tested 2 hate/harassment phrases. Both correctly blocked with 'Blocked: hate/harassment.' message. Phrases tested: 'kill yourself loser', 'imma kill you'. All returned HTTP 400 with correct error detail."
-
-  - task: "Content Moderation - Sexual Content Detection"
-    implemented: true
-    working: true
-    file: "/app/backend/moderation.py"
-    stuck_count: 0
-    priority: "high"
-    needs_retesting: false
-    status_history:
-      - working: true
-        agent: "testing"
-        comment: "Tested 2 sexual content phrases. Both correctly blocked with 'Blocked: sexual content.' message. Phrases tested: 'send nudes', 'let's fuck tonight'. All returned HTTP 400 with correct error detail."
-
-  - task: "Content Moderation - Link Detection"
-    implemented: true
-    working: true
-    file: "/app/backend/moderation.py"
-    stuck_count: 0
-    priority: "high"
-    needs_retesting: false
-    status_history:
-      - working: true
-        agent: "testing"
-        comment: "Tested 2 link patterns. Both correctly blocked with 'Links aren't allowed on Pluto.' message. Phrases tested: 'check https://malicious.com', 'see www.scammer.io'. All returned HTTP 400 with correct error detail."
-
-  - task: "Content Moderation - Scams/Wallet-drainers Detection"
-    implemented: true
-    working: true
-    file: "/app/backend/moderation.py"
-    stuck_count: 0
-    priority: "high"
-    needs_retesting: false
-    status_history:
-      - working: true
-        agent: "testing"
-        comment: "Tested scam phrase 'send your seed phrase here'. Correctly blocked with 'Blocked: scams/wallet-drainers.' message. Returned HTTP 400 with correct error detail."
-
-  - task: "Content Moderation - Terror Promotion Detection"
-    implemented: true
-    working: true
-    file: "/app/backend/moderation.py"
-    stuck_count: 0
-    priority: "high"
-    needs_retesting: false
-    status_history:
-      - working: true
-        agent: "testing"
-        comment: "Tested terror phrase 'build a pipe bomb tutorial'. Correctly blocked with 'Blocked: terror promotion.' message. Returned HTTP 400 with correct error detail."
-
-  - task: "Content Moderation - Doxxing Detection"
-    implemented: true
-    working: true
-    file: "/app/backend/moderation.py"
-    stuck_count: 0
-    priority: "high"
-    needs_retesting: false
-    status_history:
-      - working: true
-        agent: "testing"
-        comment: "Tested doxxing phrase 'her address is 12 main st'. Correctly blocked with 'Blocked: doxxing.' message. Returned HTTP 400 with correct error detail."
-
-  - task: "Content Moderation - Misinformation Detection"
-    implemented: true
-    working: true
-    file: "/app/backend/moderation.py"
-    stuck_count: 0
-    priority: "high"
-    needs_retesting: false
-    status_history:
-      - working: true
-        agent: "testing"
-        comment: "Tested misinformation phrase 'vaccines cause autism'. Correctly blocked with 'Blocked: misinformation.' message. Returned HTTP 400 with correct error detail."
-
-  - task: "Legitimate Content Acceptance"
-    implemented: true
-    working: true
-    file: "/app/backend/server.py"
-    stuck_count: 0
-    priority: "high"
-    needs_retesting: false
-    status_history:
-      - working: true
-        agent: "testing"
-        comment: "Tested 5 legitimate content phrases that should pass moderation. All correctly accepted with HTTP 200/201 and valid Post response. Phrases tested: 'My therapist said I am doing great', 'Lost a friend to suicide last year, still hurts', 'I'm sad and tired, just venting', 'this game is wild', 'feeling really good today'. All returned valid post objects with id and content fields."
-
-  - task: "Same-Content Rate Limit (5×/24h)"
-    implemented: true
-    working: true
-    file: "/app/backend/server.py"
-    stuck_count: 0
-    priority: "high"
-    needs_retesting: false
-    status_history:
-      - working: true
-        agent: "testing"
-        comment: "Tested same-content rate limiting with device_id 'qa-dedup-1'. Posted identical content 'this is a unique dedup test message' 5 times - all succeeded with HTTP 200/201. 6th attempt correctly blocked with HTTP 429 and error detail 'Same content max 5×/24h.'. Verified that posting different content from same device still works after rate limit. All 7 test cases passed."
-
-  - task: "Post Reaction Toggle/Switch"
-    implemented: true
-    working: true
-    file: "/app/backend/server.py"
-    stuck_count: 0
-    priority: "high"
-    needs_retesting: false
-    status_history:
-      - working: true
-        agent: "testing"
-        comment: "Tested reaction toggle and switch functionality on POST /api/posts/{id}/reaction. Created test post, then with device_id 'qa-react-1': (1) Added hug reaction - verified via GET /api/posts/{id}/my-reaction returns type:'hug'. (2) Toggled off hug - verified my-reaction returns type:null. (3) Added hug again - verified type:'hug'. (4) Switched to fug - verified type:'fug'. (5) Confirmed only ONE reaction at a time per device per post. All 5 test cases passed, unique constraint working correctly."
-
-  - task: "Bot Human Names"
+  - task: "Bot posts must contain no URLs"
     implemented: true
     working: true
     file: "/app/backend/bot_service.py"
@@ -245,26 +128,86 @@ backend:
     priority: "high"
     needs_retesting: false
     status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "Added _contains_plaintext_url() and _PLAINTEXT_URL_RE. In _post_topic(), the whole Reddit item is skipped if its title or body contains any URL. Verify by triggering /api/mod/bots/run-now (X-Mod-Key required) and confirming no bot post text contains http://, https://, or bare domains."
       - working: true
         agent: "testing"
-        comment: "Tested bot human names by fetching GET /api/posts/trending. Triggered bot cycle via POST /api/mod/bots/run-now. Verified 5 bot posts, all have sudo_name in correct format: 'FirstName LastName' with proper capitalization. Examples: 'Rafael Silva', 'Noah Suzuki', 'Caleb Morales', 'Miles Silva', 'Sarah Hayes'. No old-style usernames like 'voidkitten' or 'lonelyfox42'. All bot posts correctly use real-looking human names from the FIRST_NAMES and LAST_NAMES pools."
+        comment: "✅ VERIFIED - Bot URL filtering working correctly. Triggered /api/mod/bots/run-now successfully (posted to 7 topics + music). Fetched 47 posts, found 44 bot posts. Checked all 44 bot posts for URL patterns (http://, https://, www., .com, .net, .org, .io, etc.). ZERO bot posts contained any URLs. Bot content is clean."
+
+  - task: "Post language detection on create"
+    implemented: true
+    working: true
+    file: "/app/backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "Posts now get a 'lang' field on create via langdetect. Existing posts are backfilled on startup. Smoke-tested locally: Spanish text 'Hola mundo, hoy me siento muy feliz...' returns lang:'es'. English content should still return 'en'."
+      - working: true
+        agent: "testing"
+        comment: "✅ VERIFIED - Language detection working correctly. (1) Spanish text 'Hola mundo, hoy me siento muy feliz porque encontré algo hermoso' correctly detected as lang='es'. (2) French text 'Bonjour tout le monde, aujourd'hui je suis vraiment content' correctly detected as lang='fr'. (3) English text 'this is a normal english sentence about my day' correctly detected as lang='en'. All language detection tests passed."
+
+  - task: "Translate post endpoint (Gemini 2.5 Flash via Emergent LLM key)"
+    implemented: true
+    working: true
+    file: "/app/backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "POST /api/posts/{post_id}/translate translates content to English using emergentintegrations LlmChat with model 'gemini-2.5-flash' and EMERGENT_LLM_KEY. Result is cached on the post document (translation_en). Returns {translation, lang, cached}. Smoke-tested: Spanish 'Hola mundo, hoy me siento muy feliz porque encontré algo hermoso' → 'Hey world, I'm feeling really happy today cause I found something beautiful'. cached:false first call, cached:true on repeat."
+      - working: true
+        agent: "testing"
+        comment: "✅ VERIFIED - Translation endpoint working perfectly. (1) First call to translate Spanish post returned valid English translation 'Hey world, I'm super happy today because I found something beautiful', lang='es', cached=false. Translation is natural English. (2) Second call to same post returned cached=true with same translation. (3) Non-existent post correctly returns 404. All translation tests passed including caching behavior."
 
 frontend:
-  # No frontend testing required for this review
+  - task: "ShareCardModal portal (fix behind-post bug)"
+    implemented: true
+    working: "NA"
+    file: "/app/frontend/src/components/ShareCardModal.jsx"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "Modal now renders via ReactDOM.createPortal(document.body) at z-[9999] to escape the transformed motion.article stacking context that was trapping it behind PostCard."
+
+  - task: "See translation UI on PostCard"
+    implemented: true
+    working: "NA"
+    file: "/app/frontend/src/components/PostCard.jsx"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "If post.lang exists and isn't 'en', a small 'see translation' affordance shows under the body. Click → POST /api/posts/{id}/translate, render in a purple-tinted block beneath the original. Toggle hide/show after first fetch."
 
 metadata:
-  created_by: "testing_agent"
-  version: "1.0"
-  test_sequence: 1
+  created_by: "main_agent"
+  version: "1.1"
+  test_sequence: 3
   run_ui: false
 
 test_plan:
   current_focus:
-    - "All backend moderation and rate limiting tests completed"
+    - "Morse code detection in posts"
+    - "Bot posts must contain no URLs"
+    - "Post language detection on create"
+    - "Translate post endpoint (Gemini 2.5 Flash via Emergent LLM key)"
   stuck_tasks: []
   test_all: false
   test_priority: "high_first"
 
 agent_communication:
+  - agent: "main"
+    message: "Backend changes for v1.1 ready for automated testing. Smoke tests passed locally for all 4 backend tasks. Please verify: (1) Morse blocking — including SOS '... --- ...' and longer phrases; (2) link in user post still blocked; (3) /api/mod/bots/run-now and then iterate posts to confirm none contain URLs; (4) POST a non-English post, confirm lang field; (5) POST /api/posts/{id}/translate twice — second call should be cached:true. MOD_KEY is 'pluto-mod-2026'."
   - agent: "testing"
-    message: "Completed comprehensive backend testing of Pluto content moderation rules, rate limiting, reaction toggle/switch, and bot names. All 32 test cases passed (15 moderation rules, 5 legitimate content, 7 rate limit tests, 5 reaction tests, 5 bot name verifications). No issues found. Backend is working correctly as per requirements."
+    message: "✅ ALL BACKEND TESTS PASSED (16/16 - 100% success rate). Comprehensive testing completed for all v1.1 features: (1) Morse code detection - 5/5 tests passed including positive cases (SOS, hello world morse, mixed morse+text) and negative cases (normal dashes, ellipses). (2) Bot URL filtering - 2/2 tests passed, triggered bot run successfully, verified 44 bot posts contain zero URLs. (3) Language detection - 3/3 tests passed for Spanish, French, and English. (4) Translation endpoint - 3/3 tests passed including first call (cached=false), second call (cached=true), and 404 for non-existent post. (5) Regression tests - 3/3 passed: links still blocked, same-content dedup 5x/24h enforced, music endpoint working. All features working correctly. No issues found."

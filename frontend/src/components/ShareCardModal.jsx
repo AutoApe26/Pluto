@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { AnimatePresence, motion } from "framer-motion";
 import {
   X,
@@ -183,14 +184,15 @@ export const ShareCardModal = ({ open, onClose, post }) => {
 
   return (
     <AnimatePresence>
-      {open && (
-        <motion.div
-          className="fixed inset-0 z-[70] flex items-end sm:items-center justify-center"
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          data-testid="share-card-modal"
-        >
+      {open && typeof document !== "undefined"
+        ? createPortal(
+            <motion.div
+              className="fixed inset-0 z-[9999] flex items-end sm:items-center justify-center"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              data-testid="share-card-modal"
+            >
           {/* Off-screen full-size card for html2canvas */}
           <div
             aria-hidden
@@ -314,8 +316,10 @@ export const ShareCardModal = ({ open, onClose, post }) => {
               Tag <span className="font-mono text-zinc-300">$PNF</span>.
             </p>
           </motion.div>
-        </motion.div>
-      )}
+        </motion.div>,
+            document.body,
+          )
+        : null}
     </AnimatePresence>
   );
 };

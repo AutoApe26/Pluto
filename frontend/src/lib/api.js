@@ -28,6 +28,8 @@ export const api = {
     client
       .get(`/posts/${id}/my-reaction`, { params: { device_id: getDeviceId() } })
       .then((r) => r.data),
+  translatePost: (id) =>
+    client.post(`/posts/${id}/translate`).then((r) => r.data),
 
   // music
   music: () => client.get("/music").then((r) => r.data),

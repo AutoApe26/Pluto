@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import { Heart, ThumbsDown, Share2 } from "lucide-react";
+import { Heart, ThumbsDown, Share2, Languages, Loader2 } from "lucide-react";
 import { TimeRemainingBadge } from "./TimeRemainingBadge";
 import { ReportButton } from "./ReportButton";
 import { ShareCardModal } from "./ShareCardModal";
@@ -26,6 +26,34 @@ export const PostCard = ({ post, index = 0 }) => {
   const [myReaction, setMyReaction] = useState(null);
   const [busy, setBusy] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
+
+  // Translation state — only relevant if the post isn't already English.
+  const isForeign = post.lang && post.lang !== "en";
+  const [translation, setTranslation] = useState(null);
+  const [showTranslation, setShowTranslation] = useState(false);
+  const [translating, setTranslating] = useState(false);
+  const [translateErr, setTranslateErr] = useState(false);
+
+  const onTranslate = async (e) => {
+    e.stopPropagation();
+    if (translating) return;
+    if (translation) {
+      setShowTranslation((v) => !v);
+      return;
+    }
+    setTranslating(true);
+    setTranslateErr(false);
+    try {
+      const res = await api.translatePost(post.id);
+      const t = (res?.translation || "").trim();
+      setTranslation(t || post.content);
+      setShowTranslation(true);
+    } catch (err) {
+      setTranslateErr(true);
+    } finally {
+      setTranslating(false);
+    }
+  };
 
   useEffect(() => {
     let cancelled = false;
@@ -108,6 +136,50 @@ export const PostCard = ({ post, index = 0 }) => {
       <p className="text-[15px] sm:text-base leading-relaxed text-zinc-100 whitespace-pre-wrap break-words">
         {post.content}
       </p>
+
+      {isForeign && (
+        <div className="mt-2 flex flex-col gap-2">
+          <button
+            type="button"
+            onClick={onTranslate}
+            disabled={translating}
+            data-testid={`translate-btn-${post.id}`}
+            className="inline-flex items-center gap-1.5 self-start text-[11px] font-mono uppercase tracking-wider text-zinc-400 hover:text-purple-300 transition disabled:opacity-60"
+          >
+            {translating ? (
+              <Loader2 className="w-3 h-3 animate-spin" />
+            ) : (
+              <Languages className="w-3 h-3" />
+            )}
+            {translating
+              ? "translating…"
+              : translation
+                ? showTranslation
+                  ? "hide translation"
+                  : "show translation"
+                : "see translation"}
+            <span className="px-1.5 py-0.5 rounded-full bg-white/[0.05] border border-white/10 text-[9px] text-zinc-300">
+              {post.lang}
+            </span>
+          </button>
+          {translateErr && (
+            <span className="text-[11px] text-rose-300/80">
+              Couldn't translate — try again in a sec.
+            </span>
+          )}
+          {showTranslation && translation && (
+            <div
+              data-testid={`translation-${post.id}`}
+              className="rounded-2xl border border-purple-400/20 bg-purple-500/[0.06] px-3 py-2.5 text-[14px] sm:text-[15px] leading-relaxed text-zinc-100 whitespace-pre-wrap break-words"
+            >
+              <div className="text-[10px] font-mono uppercase tracking-wider text-purple-300/80 mb-1">
+                English translation
+              </div>
+              {translation}
+            </div>
+          )}
+        </div>
+      )}
 
       {post.image ? (
         <div

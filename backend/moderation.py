@@ -259,6 +259,34 @@ for label, phrases in _CATEGORIES:
     _CATEGORIES_PREP.append((label, prepped))
 
 
+# ---------------------------------------------------------------------------
+# Morse code detection — long runs of dot/dash characters (with optional
+# slash word separators) are not legitimate posts and are commonly used to
+# smuggle blocked words past plain-text filters. We block anything that
+# *looks* like morse: at least 3 morse "letters" (dot/dash groups separated
+# by whitespace, optionally with '/' word separators).
+# ---------------------------------------------------------------------------
+_MORSE_GROUP_RE = re.compile(r"[.\-·–—_]{1,6}")  # single morse letter
+_MORSE_SEQUENCE_RE = re.compile(
+    r"(?:[.\-·–—_]{1,6}[ \t/]+){2,}[.\-·–—_]{1,6}"
+)
+
+
+def detect_morse_code(text: str) -> bool:
+    if not text:
+        return False
+    # Quick reject if text doesn't have enough morse characters
+    if sum(1 for c in text if c in ".-·–—_") < 6:
+        return False
+    for match in _MORSE_SEQUENCE_RE.finditer(text):
+        seq = match.group(0)
+        groups = [g for g in re.split(r"[ \t/]+", seq) if g]
+        # Need at least 3 morse letters that are *only* dots/dashes
+        if len(groups) >= 3 and all(_MORSE_GROUP_RE.fullmatch(g) for g in groups):
+            return True
+    return False
+
+
 def detect_link(text: str) -> bool:
     return bool(_URL_RE.search(text))
 
@@ -284,6 +312,8 @@ def violation_for(text: str) -> Optional[str]:
         return None
     if detect_link(text):
         return "Links aren't allowed on Pluto."
+    if detect_morse_code(text):
+        return "Morse code isn't allowed on Pluto."
     cat = detect_blocked_category(text)
     if cat:
         return f"Blocked: {cat}."

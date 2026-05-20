@@ -15,6 +15,20 @@ from bot_service import bot_loop, run_once, engagement_loop
 from moderation import violation_for, normalized_for_dedup
 from image_moderation import moderate_image_data_url, category_label
 
+# Language detection — used to flag posts so frontend can offer translation.
+try:
+    from langdetect import detect as _lang_detect, DetectorFactory
+    DetectorFactory.seed = 0  # deterministic
+except Exception:  # pragma: no cover
+    _lang_detect = None
+
+# Emergent LLM (Gemini) — for on-demand post translation.
+try:
+    from emergentintegrations.llm.chat import LlmChat, UserMessage
+except Exception:  # pragma: no cover
+    LlmChat = None
+    UserMessage = None
+
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
@@ -25,6 +39,24 @@ db = client[os.environ['DB_NAME']]
 
 MOD_KEY = os.environ.get('MOD_KEY', 'pluto-mod-2026')
 REPORT_HIDE_THRESHOLD = 3
+EMERGENT_LLM_KEY = os.environ.get('EMERGENT_LLM_KEY', '')
+
+
+def _detect_lang(text: str) -> str:
+    """Best-effort language code (ISO 639-1) for a post body. Falls back
+    to 'en' on any failure. Very short text (< 8 chars) is assumed English
+    since detectors are unreliable on tiny strings."""
+    if not text or len(text.strip()) < 8 or _lang_detect is None:
+        return "en"
+    # If the body is dominated by ASCII letters and looks like English-ish
+    # script, langdetect can still confidently misclassify slang. Keep the
+    # raw guess and let the frontend decide whether to surface the
+    # "see translation" affordance.
+    try:
+        code = _lang_detect(text)
+        return (code or "en").split("-", 1)[0].lower()
+    except Exception:
+        return "en"
 
 app = FastAPI(title="Pluto API")
 api_router = APIRouter(prefix="/api")
@@ -79,6 +111,7 @@ class Post(BaseModel):
     report_count: int = 0
     hidden: bool = False
     is_bot: bool = False
+    lang: str = "en"
 
 class MusicCreate(BaseModel):
     link_url: str = Field(min_length=8, max_length=600)
@@ -227,6 +260,7 @@ async def create_post(payload: PostCreate):
         device_id=payload.device_id,
         created_at=iso(created),
         expires_at=iso(expires),
+        lang=_detect_lang(content),
     )
     doc = post.model_dump()
     doc["content_norm"] = norm  # for dedup queries — not exposed in response
@@ -287,6 +321,63 @@ async def my_post_reaction(post_id: str, device_id: str):
         {"post_id": post_id, "device_id": device_id}, {"_id": 0}
     )
     return {"type": rec["type"] if rec else None}
+
+
+@api_router.post("/posts/{post_id}/translate")
+async def translate_post(post_id: str):
+    """On-demand translation of a post to English via Gemini 2.5 Flash.
+    Cached on the post document after first call so repeat clicks are free."""
+    post = await db.posts.find_one({"id": post_id}, {"_id": 0})
+    if not post:
+        raise HTTPException(404, "Post not found")
+    content = (post.get("content") or "").strip()
+    if not content:
+        return {"translation": "", "lang": post.get("lang", "en"), "cached": False}
+
+    # Return cached translation if we have one
+    cached = post.get("translation_en")
+    if cached:
+        return {
+            "translation": cached,
+            "lang": post.get("lang", "en"),
+            "cached": True,
+        }
+
+    if not EMERGENT_LLM_KEY or LlmChat is None:
+        raise HTTPException(503, "Translation service unavailable.")
+
+    try:
+        chat = LlmChat(
+            api_key=EMERGENT_LLM_KEY,
+            session_id=f"translate-{post_id}",
+            system_message=(
+                "You are a translation engine. Translate the user's text to "
+                "natural, casual English. Preserve emojis, slang vibe, and "
+                "line breaks. If the text is already in English, return it "
+                "unchanged. Do NOT add any explanation, prefix, suffix, or "
+                "quotes — output the translation only."
+            ),
+        ).with_model("gemini", "gemini-2.5-flash")
+        msg = UserMessage(text=content)
+        result = await chat.send_message(msg)
+        translation = (result or "").strip()
+        # Defensive: strip any wrapping quotes the model may add
+        if len(translation) >= 2 and translation[0] in '"“' and translation[-1] in '"”':
+            translation = translation[1:-1].strip()
+    except Exception as e:
+        logger.exception("translation failed: %s", e)
+        raise HTTPException(502, "Translation failed. Try again later.")
+
+    # Cache on the post so we don't burn tokens on every click
+    await db.posts.update_one(
+        {"id": post_id},
+        {"$set": {"translation_en": translation}},
+    )
+    return {
+        "translation": translation,
+        "lang": post.get("lang", "en"),
+        "cached": False,
+    }
 
 # ============================================================
 # Music
@@ -504,7 +595,7 @@ async def startup():
     await db.reports.create_index([("target_type", 1), ("target_id", 1), ("device_id", 1)], unique=True)
     # One-time cleanup: drop legacy music posts that don't have link_url
     await db.music_posts.delete_many({"link_url": {"$exists": False}})
-    # Backfill hugs/fugs + content_norm on legacy posts so all rules apply
+    # Backfill hugs/fugs + content_norm + lang on legacy posts so all rules apply
     import random as _rnd
     legacy_cursor = db.posts.find(
         {
@@ -512,9 +603,11 @@ async def startup():
                 {"hugs": {"$exists": False}},
                 {"fugs": {"$exists": False}},
                 {"content_norm": {"$exists": False}},
+                {"lang": {"$exists": False}},
             ]
         },
-        {"_id": 1, "is_bot": 1, "content": 1, "hugs": 1, "fugs": 1, "content_norm": 1},
+        {"_id": 1, "is_bot": 1, "content": 1, "hugs": 1, "fugs": 1,
+         "content_norm": 1, "lang": 1},
     )
     async for p in legacy_cursor:
         update: dict = {}
@@ -526,6 +619,8 @@ async def startup():
             update["fugs"] = fugs
         if not p.get("content_norm") and p.get("content"):
             update["content_norm"] = normalized_for_dedup(p["content"])
+        if not p.get("lang") and p.get("content"):
+            update["lang"] = _detect_lang(p["content"])
         if update:
             await db.posts.update_one({"_id": p["_id"]}, {"$set": update})
     # Launch background bot loops

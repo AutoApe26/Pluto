@@ -24,6 +24,22 @@ from xml.etree import ElementTree as ET
 
 import requests
 
+# Optional language detection — used so the frontend can offer translation.
+try:
+    from langdetect import detect as _lang_detect, DetectorFactory
+    DetectorFactory.seed = 0
+except Exception:  # pragma: no cover
+    _lang_detect = None
+
+
+def _bot_detect_lang(text: str) -> str:
+    if not text or len(text.strip()) < 8 or _lang_detect is None:
+        return "en"
+    try:
+        return (_lang_detect(text) or "en").split("-", 1)[0].lower()
+    except Exception:
+        return "en"
+
 logger = logging.getLogger("pluto.bots")
 
 REDDIT_UA = "Mozilla/5.0 (compatible; PlutoBot/1.0; +https://pluto.app)"
@@ -138,6 +154,20 @@ def _extract_external_link(html_str: str) -> Optional[str]:
         if ul.startswith("http") and ("reddit.com" not in ul and "redd.it" not in ul):
             return u
     return None
+
+
+# Plain-text URL detector for bot post bodies. We refuse any item whose
+# body (after HTML stripping) contains a URL — bots must never post links.
+_PLAINTEXT_URL_RE = re.compile(
+    r"(?ix)\b(?:https?://[^\s<>]+|www\.[^\s<>]+|"
+    r"(?:[a-z0-9-]+\.)+(?:com|net|org|io|co|gg|app|dev|xyz|me|info|biz|ai|"
+    r"so|us|uk|de|fr|in|tv|cn|ru|jp|tech|live|stream|link|store|onion)"
+    r"(?:/[^\s<>]*)?)"
+)
+
+
+def _contains_plaintext_url(s: str) -> bool:
+    return bool(s) and bool(_PLAINTEXT_URL_RE.search(s))
 
 
 def _detect_provider(url: str) -> Optional[str]:
@@ -406,6 +436,11 @@ async def _post_topic(db, topic: str) -> bool:
             body_low = body.lower()
             if any(p in body_low for p in skip_phrases):
                 continue
+            # Rule: bots must NEVER post links. Skip the whole Reddit item
+            # if either the title or body contains any URL.
+            if _contains_plaintext_url(title) or _contains_plaintext_url(body):
+                logger.debug("bot skip r/%s — contains URL", sub)
+                continue
             body = body[:700].strip()
             content = title if not body else f"{title}\n\n{body}"
             content = content[:1000]
@@ -431,6 +466,7 @@ async def _post_topic(db, topic: str) -> bool:
                 "hidden": False,
                 "is_bot": True,
                 "source": f"r/{sub}",
+                "lang": _bot_detect_lang(content),
             }
             await db.posts.insert_one(post)
             await db.bot_posted.insert_one({
