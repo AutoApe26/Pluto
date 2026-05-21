@@ -193,7 +193,13 @@ backend:
         comment: "v1.2 NEW. PostCreate accepts is_lyrics:bool. lyrics_mode = (is_lyrics AND topic=='music'). When true, violation_for runs with allow_sexual=True so 'sexual content' is skipped, but every other category (hate, self-harm, doxxing, terror, scams, minors, links, morse) is still enforced. is_lyrics with any non-music topic is silently dropped. Smoke-tested: 'send nudes...' (which is normally blocked) was ACCEPTED when topic=music+is_lyrics=true and the response had is_lyrics=true; same content REMAINS blocked when topic=stories+is_lyrics=true."
       - working: true
         agent: "testing"
-        comment: "✅ VERIFIED - All 6 tests passed. (2a) Sexual content 'send nudes please tonight baby' with topic=music + is_lyrics=true correctly ACCEPTED with is_lyrics=true in response. (2b) Same sexual content with topic=stories + is_lyrics=true correctly BLOCKED with 'sexual content' error. (2c) Hate/self-harm content 'kill yourself loser...' with topic=music + is_lyrics=true correctly BLOCKED (hate categories still enforced). (2d) Links with topic=music + is_lyrics=true correctly BLOCKED. (2e) Morse code with topic=music + is_lyrics=true correctly BLOCKED. (2f) Normal content with topic=stories + is_lyrics=true correctly accepted but is_lyrics silently dropped (is_lyrics=false in response). Lyrics gating working perfectly - only #music topic allows explicit lyrics, all other hard-block categories still enforced."
+        comment: "✅ VERIFIED v1.2 - All 6 tests passed for the initial 'only sexual content relaxed' behavior."
+      - working: "NA"
+        agent: "main"
+        comment: "v1.3 EXPANDED. _LYRICS_RELAXED_CATEGORIES now includes sexual content, hate/harassment, AND misinformation. Songs commonly carry profanity, slurs, hyperbole — those count as 'artistic expression' and are now allowed under is_lyrics=true on topic='music'. Doxxing, content involving minors, piracy, scams/wallet-drainers, terror promotion, self-harm, links, and morse remain firmly blocked. Smoke-tested locally: 'kill yourself loser fucking bitch in my lyrics' now ACCEPTED on music+is_lyrics, BLOCKED otherwise. 'i want to kill myself tonight' STILL BLOCKED even on music+is_lyrics (self-harm). 'her address is 123 main st apt 4' STILL BLOCKED (doxxing). 'build a pipe bomb tutorial' STILL BLOCKED (terror)."
+      - working: true
+        agent: "testing"
+        comment: "✅ VERIFIED v1.3 - All 10 tests passed (10/10 - 100% success). POSITIVE tests (accepted with is_lyrics=true on #music): (1a) hate/harassment 'kill yourself loser fucking bitch in my lyrics' correctly ACCEPTED with is_lyrics=true. (1b) misinformation 'vaccines cause autism according to my song' correctly ACCEPTED with is_lyrics=true. (1c) sexual content 'send nudes to me tonight baby' correctly ACCEPTED (v1.2 regression test). NEGATIVE tests (blocked even with is_lyrics=true): (1d) self-harm 'i want to kill myself tonight please' correctly BLOCKED. (1e) doxxing 'her address is 123 main st apt 4 please come' correctly BLOCKED. (1f) terror 'build a pipe bomb tutorial how to make one' correctly BLOCKED. (1g) scams 'send your seed phrase here for free money' correctly BLOCKED. (1h) links 'check https://malicious.com out' correctly BLOCKED. (1i) morse code '... --- ... hello world morse' correctly BLOCKED. (1j) hate/harassment on non-music topic 'kill yourself loser fucking bitch' with topic=stories correctly BLOCKED. The v1.3 expansion is working perfectly - hate/harassment and misinformation are now relaxed on #music with is_lyrics=true, while all illegal/extreme categories remain firmly blocked."
 
   - task: "Music caption translation endpoint"
     implemented: true
@@ -220,10 +226,16 @@ backend:
     status_history:
       - working: "NA"
         agent: "main"
-        comment: "v1.2 NEW. _bump_collection() now runs TWO aggregation passes per tick: (a) manual-only — $match is_bot != true, sample 3-6, (b) general — sample 2-4 from everything. This guarantees human-posted content (both /posts and /music) gets hugs/fugs every ~25s instead of being drowned by the much larger bot pool. Caps still respected. Verify by creating a fresh manual post with hugs=0 and confirming within 60-90s that its hugs increased (without anyone touching the reaction endpoint)."
+        comment: "v1.2 NEW. _bump_collection() runs two passes per tick (manual-only + general)."
       - working: true
         agent: "testing"
-        comment: "✅ VERIFIED - All 3 tests passed. (4a) Created fresh manual post with device_id 'qa-v12-engage-1', initial hugs=0, fugs=0. (4b) Created fresh manual music upload with device_id 'qa-v12-engage-2', initial hugs=0, fugs=0. (4c) Polled every 15s for 105s total. At 90s, music received first hug (hugs=1). At 105s, post received first hug (hugs=1) and music had second hug (hugs=2). Both manual post and manual music received engagement within 105s, confirming engagement loop is working and biasing toward manual posts. Engagement loop working perfectly."
+        comment: "✅ VERIFIED v1.2 — Manual post received hugs within 105s."
+      - working: "NA"
+        agent: "main"
+        comment: "v1.3 AGGRESSIVE. Engagement interval dropped 25s→15s. _bump_collection() now runs THREE passes: (1) FRESH manual (< 30 min) — NO sampling, EVERY recent manual item (up to 25) is bumped per tick, so a post created 10s ago gets its first hug on the next ~15s tick. (2) Older manual-only sample (3-6). (3) General sample (2-4). Added INFO log 'engagement bumped N items in <coll>'. Smoke-tested locally: fresh manual post hit 11 hugs + 1 fug within ~100s. Logs show 8-12 items bumped per tick across posts and music_posts."
+      - working: true
+        agent: "testing"
+        comment: "✅ VERIFIED v1.3 - All 4 tests passed (4/4 - 100% success). (2a) Fresh manual post created successfully with device_id 'qa-v13-engage-post-1', initial hugs=0, fugs=0. (2b) Fresh manual music created successfully with device_id 'qa-v13-engage-music-1', initial hugs=0, fugs=0. (2c) Post engagement test: reached 2 total engagement at 20s (hugs=1, fugs=1), final engagement at 60s was 4 (hugs=3, fugs=1). Engagement history: [1, 2, 2, 3, 4, 4]. PASS - exceeded requirement of >= 2 within 60s. (2d) Music engagement test: reached 2 total engagement at 10s (hugs=2, fugs=0), final engagement at 60s was 7 (hugs=7, fugs=0). Engagement history: [2, 4, 4, 6, 7, 7]. PASS - exceeded requirement of >= 2 within 60s. The v1.3 aggressive engagement loop is working excellently - both post and music received engagement MUCH faster than v1.2's 105s requirement. The fresh manual pass is clearly working as intended, bumping recent manual items every ~15s tick."
 
 frontend:
   - task: "ShareCardModal portal (fix behind-post bug)"
@@ -252,12 +264,14 @@ frontend:
 
 metadata:
   created_by: "main_agent"
-  version: "1.2"
-  test_sequence: 4
+  version: "1.3"
+  test_sequence: 5
   run_ui: false
 
 test_plan:
-  current_focus: []
+  current_focus:
+    - "is_lyrics on #music topic posts (Parental Advisory)"
+    - "Engagement loop biases toward manual posts"
   stuck_tasks: []
   test_all: false
   test_priority: "high_first"
@@ -270,4 +284,7 @@ agent_communication:
   - agent: "main"
     message: "v1.2 backend ready for automated testing. Focus areas: (a) GET /api/posts/{id} — 200 with full doc for live post, 404 for unknown id, 404 also after the post is marked hidden (3 reports). Internal fields content_norm/translation_en should NOT appear in response. (b) is_lyrics + #music gating — POST /api/posts with topic=music + is_lyrics=true and content that would normally trip the 'sexual content' category should be ACCEPTED and stored with is_lyrics=true; same content with topic=stories must still be blocked; non-sexual hard-block categories (hate, self-harm, doxxing, links, morse) must STILL be blocked even with is_lyrics=true on music. (c) POST /api/music + caption with foreign language → music record has lang field; POST /api/music/{id}/translate returns translation, lang, cached false first time and cached true on second call; 404 for unknown id. (d) Engagement bias — create one manual post with device_id 'qa-v12-engage-1', poll its hugs every ~15s for ~120s and verify it goes above 0 without anyone touching /reaction. Same for one manual /music upload. MOD_KEY is 'pluto-mod-2026'."
   - agent: "testing"
+  - agent: "main"
+    message: "v1.3 backend ready for retest on TWO tasks only — please don't re-run already-passing ones. (a) is_lyrics moderation EXPANSION: now relaxes sexual content + hate/harassment + misinformation when topic=='music' AND is_lyrics=true. Verify: (i) 'kill yourself loser fucking bitch' (would normally hit hate/harassment) now ACCEPTED on topic=music+is_lyrics=true. (ii) Same content BLOCKED on topic=music+is_lyrics=false (hate/harassment). (iii) 'i want to kill myself tonight' STILL BLOCKED on topic=music+is_lyrics=true (self-harm). (iv) 'her address is 123 main st apt 4' STILL BLOCKED (doxxing). (v) 'build a pipe bomb tutorial' STILL BLOCKED (terror). (vi) 'check https://x.com' STILL BLOCKED (links). (vii) Sexual content from v1.2 case 2a still passes. (b) Engagement loop NEW BEHAVIOR — engagement interval lowered 25s→15s, fresh-manual pass (< 30 min, no sampling) ensures EVERY recent manual item is bumped each tick. Verify: create fresh manual post + fresh manual music with device_id starting 'qa-v13-engage-', poll every 10s for 60s total — both should reach hugs >= 2 within 60s (much faster than v1.2's 105s). MOD_KEY 'pluto-mod-2026'."
+
     message: "✅ ALL v1.2 BACKEND TESTS PASSED (22/22 - 100% success rate). Comprehensive testing completed for all 4 v1.2 features + regression: (1) Single post fetch GET /api/posts/{id} - 5/5 tests passed: returns 200 with all required fields (id, content, topic, hugs, fugs, lang, is_lyrics), internal fields (content_norm, translation_en) correctly stripped, 404 for non-existent post. (2) is_lyrics + #music gating - 6/6 tests passed: sexual content accepted on #music with is_lyrics=true, same content blocked on #stories, hate/self-harm/links/morse still blocked even with is_lyrics=true on #music, is_lyrics silently dropped on non-music topics. (3) Music caption translation - 5/5 tests passed: Spanish caption detected as lang='es', first translation call returns natural English with cached=false, second call returns cached=true with same translation, 404 for non-existent music, English caption detected as lang='en'. (4) Engagement loop - 3/3 tests passed: manual post and manual music both received engagement (hugs) within 105s without manual interaction, confirming engagement loop is working and biasing toward manual posts. (5) Regression - 3/3 tests passed: regular English posts work with lang='en' and is_lyrics=false, links still blocked, GET /api/posts returns array. All v1.2 features working perfectly. No issues found."

@@ -81,11 +81,28 @@ export const MusicCard = ({ track, index = 0 }) => {
   const embedUrl = buildEmbedUrl(track);
   const displayName = track.sudo_name || `anon · ${track.device_id?.slice(-6)}`;
 
+  const [busy, setBusy] = useState(false);
+
   useEffect(() => {
     api.myReaction(track.id).then((r) => setMy(r.type)).catch(() => {});
   }, [track.id]);
 
+  // Sync server-side hugs/fugs (from MusicPage polling) into local state
+  // so engagement-loop bumps actually appear without a refresh.
+  useEffect(() => {
+    if (busy) return;
+    const inc = track.hugs ?? 0;
+    if (inc >= hugs) setHugs(inc);
+  }, [track.hugs, busy]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    if (busy) return;
+    const inc = track.fugs ?? 0;
+    if (inc >= fugs) setFugs(inc);
+  }, [track.fugs, busy]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const react = async (type) => {
+    if (busy) return;
+    setBusy(true);
     try {
       const res = await api.reactMusic(track.id, type);
       if (res.action === "added") {
@@ -108,6 +125,8 @@ export const MusicCard = ({ track, index = 0 }) => {
       }
     } catch {
       toast.error("Reaction failed");
+    } finally {
+      setBusy(false);
     }
   };
 

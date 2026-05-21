@@ -606,7 +606,7 @@ async def bot_loop(db):
 # (manual + bot) so the whole feed feels alive. Without this, manually-posted
 # content stays at 0 forever, which is obvious and demotivating.
 # ---------------------------------------------------------------------------
-ENGAGEMENT_INTERVAL = int(os.environ.get("PLUTO_ENGAGEMENT_INTERVAL", "25"))  # seconds
+ENGAGEMENT_INTERVAL = int(os.environ.get("PLUTO_ENGAGEMENT_INTERVAL", "15"))  # seconds
 HUG_CAP = 200
 FUG_CAP = 30
 # Probability bias — natural feeds have ~6× more positive than negative reactions
@@ -616,39 +616,52 @@ HUG_PROB = 0.86
 async def _bump_collection(db, coll, post_field_id: str = "id"):
     """Pick a few random recent items and add +1 hug or +1 fug to each.
 
-    We deliberately split the sample into two passes so manual (non-bot)
-    posts always get attention each cycle — without this split, bots
-    dominate the pool and human-posted content sits at 0 forever, which is
-    what makes the feed feel dead for actual posters.
+    Three passes ensure manual posts can't be drowned out by the much
+    larger bot pool:
+      (1) FRESH manual posts (< 30 min old) — every one of them gets a
+          guaranteed +1 hug or +1 fug per tick. This makes new posts feel
+          alive immediately.
+      (2) Older manual-only random sample — keeps existing human content
+          climbing across its full 24h life.
+      (3) General random sample — sprinkles engagement on bot posts too.
     """
-    week_ago = _iso(_now_utc() - timedelta(days=2))  # active window
-    base_match = {
-        "created_at": {"$gte": week_ago},
+    now = _now_utc()
+    fresh_cutoff = _iso(now - timedelta(minutes=30))
+    active_cutoff = _iso(now - timedelta(days=2))
+    base_active = {
+        "created_at": {"$gte": active_cutoff},
         "hidden": {"$ne": True},
     }
-    pipelines = [
-        # Manual-only pass — guaranteed every cycle so human posts climb.
-        [
-            {"$match": {**base_match, "is_bot": {"$ne": True}}},
-            {"$sample": {"size": random.randint(3, 6)}},
-            {"$project": {"_id": 0, post_field_id: 1, "hugs": 1, "fugs": 1}},
-        ],
-        # General pass — adds engagement to bot posts too.
-        [
-            {"$match": base_match},
-            {"$sample": {"size": random.randint(2, 4)}},
-            {"$project": {"_id": 0, post_field_id: 1, "hugs": 1, "fugs": 1}},
-        ],
+    # Pass 1 (FRESH MANUAL): no $sample — bump EVERY recent manual item
+    # so a post created 10 seconds ago gets its first hug on the next tick.
+    fresh_pipeline = [
+        {"$match": {
+            **base_active,
+            "is_bot": {"$ne": True},
+            "created_at": {"$gte": fresh_cutoff},
+        }},
+        {"$project": {"_id": 0, post_field_id: 1, "hugs": 1, "fugs": 1}},
+        {"$limit": 25},
     ]
+    older_manual_pipeline = [
+        {"$match": {**base_active, "is_bot": {"$ne": True}}},
+        {"$sample": {"size": random.randint(3, 6)}},
+        {"$project": {"_id": 0, post_field_id: 1, "hugs": 1, "fugs": 1}},
+    ]
+    general_pipeline = [
+        {"$match": base_active},
+        {"$sample": {"size": random.randint(2, 4)}},
+        {"$project": {"_id": 0, post_field_id: 1, "hugs": 1, "fugs": 1}},
+    ]
+    bumped = 0
     try:
-        for pipeline in pipelines:
+        for pipeline in (fresh_pipeline, older_manual_pipeline, general_pipeline):
             async for doc in coll.aggregate(pipeline):
                 pid = doc.get(post_field_id)
                 if not pid:
                     continue
                 cur_h = doc.get("hugs") or 0
                 cur_f = doc.get("fugs") or 0
-                # Bias toward hugs; very small chance of a fug
                 give_hug = random.random() < HUG_PROB
                 if give_hug and cur_h >= HUG_CAP:
                     continue
@@ -656,6 +669,9 @@ async def _bump_collection(db, coll, post_field_id: str = "id"):
                     continue
                 field = "hugs" if give_hug else "fugs"
                 await coll.update_one({post_field_id: pid}, {"$inc": {field: 1}})
+                bumped += 1
+        if bumped:
+            logger.info("engagement bumped %s items in %s", bumped, coll.name)
     except Exception as e:
         logger.warning("engagement bump failed: %s", e)
 

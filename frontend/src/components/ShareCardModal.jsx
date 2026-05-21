@@ -9,6 +9,7 @@ import {
   Link as LinkIcon,
   Share2,
   Loader2,
+  ChevronDown,
 } from "lucide-react";
 import html2canvas from "html2canvas";
 import { toast } from "sonner";
@@ -47,6 +48,7 @@ export const ShareCardModal = ({ open, onClose, post }) => {
   const [previewUrl, setPreviewUrl] = useState(null);
   const [blob, setBlob] = useState(null);
   const [busy, setBusy] = useState(false);
+  const [shareMenuOpen, setShareMenuOpen] = useState(false);
   const [remaining, setRemaining] = useState(
     post ? timeRemaining(post.expires_at) : ""
   );
@@ -72,6 +74,7 @@ export const ShareCardModal = ({ open, onClose, post }) => {
         return null;
       });
       setBlob(null);
+      setShareMenuOpen(false);
       return;
     }
     const t = setTimeout(async () => {
@@ -332,6 +335,12 @@ export const ShareCardModal = ({ open, onClose, post }) => {
               )}
             </div>
 
+            {/*
+              Share menu — hover-reveal dropdown on desktop, tap-toggle on
+              mobile. The menu pops above the button with a stagger of the
+              4 platforms (X / Instagram / TikTok / Facebook) and stays open
+              while either the trigger or the menu itself is hovered.
+            */}
             <div className="grid grid-cols-2 gap-2 mt-4">
               <button
                 onClick={handleDownload}
@@ -346,73 +355,136 @@ export const ShareCardModal = ({ open, onClose, post }) => {
                 )}
                 Download PNG
               </button>
-              <button
-                onClick={handleNativeShare}
-                disabled={busy || !blob}
-                data-testid="share-native-btn"
-                className="inline-flex items-center justify-center gap-2 rounded-full py-3 text-sm font-medium text-white bg-white/[0.06] border border-white/10 hover:bg-white/[0.1] transition disabled:opacity-50"
-              >
-                <Share2 className="w-4 h-4" />
-                Share…
-              </button>
-            </div>
 
-            <div className="mt-3">
-              <div className="text-[10px] font-mono uppercase tracking-[0.2em] text-zinc-500 mb-2">
-                Share to
-              </div>
-              <div className="grid grid-cols-4 gap-2">
+              <div
+                className="relative"
+                onMouseEnter={() => setShareMenuOpen(true)}
+                onMouseLeave={() => setShareMenuOpen(false)}
+              >
                 <button
-                  onClick={handleX}
-                  data-testid="share-x-btn"
-                  title="Post on X"
-                  className="flex flex-col items-center justify-center gap-1 py-3 rounded-2xl bg-white/[0.05] border border-white/10 hover:bg-white/[0.1] hover:border-white/25 text-white transition active:scale-95"
+                  type="button"
+                  onClick={() => setShareMenuOpen((v) => !v)}
+                  disabled={busy || !blob}
+                  data-testid="share-native-btn"
+                  aria-expanded={shareMenuOpen}
+                  aria-haspopup="menu"
+                  className={`relative w-full inline-flex items-center justify-center gap-2 rounded-full py-3 text-sm font-medium text-white border transition disabled:opacity-50 ${
+                    shareMenuOpen
+                      ? "bg-white/[0.12] border-purple-400/50 shadow-lg shadow-purple-500/20"
+                      : "bg-white/[0.06] border-white/10 hover:bg-white/[0.1] hover:border-white/25"
+                  }`}
                 >
-                  <XMark className="w-5 h-5" />
-                  <span className="text-[10px] font-mono uppercase tracking-wider">
-                    X
-                  </span>
+                  <Share2 className="w-4 h-4" />
+                  Share to…
+                  <motion.span
+                    animate={{ rotate: shareMenuOpen ? 180 : 0 }}
+                    transition={{ duration: 0.2 }}
+                    className="inline-block ml-0.5"
+                  >
+                    <ChevronDown className="w-3.5 h-3.5 opacity-70" />
+                  </motion.span>
                 </button>
-                <button
-                  onClick={handleInstagram}
-                  disabled={!blob}
-                  data-testid="share-instagram-btn"
-                  title="Share to Instagram"
-                  className="flex flex-col items-center justify-center gap-1 py-3 rounded-2xl border transition active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed text-white"
-                  style={{
-                    background:
-                      "linear-gradient(135deg, rgba(225,48,108,0.20) 0%, rgba(245,133,41,0.18) 50%, rgba(64,93,230,0.20) 100%)",
-                    borderColor: "rgba(225,48,108,0.45)",
-                  }}
-                >
-                  <Instagram className="w-5 h-5" />
-                  <span className="text-[10px] font-mono uppercase tracking-wider">
-                    Instagram
-                  </span>
-                </button>
-                <button
-                  onClick={handleTikTok}
-                  disabled={!blob}
-                  data-testid="share-tiktok-btn"
-                  title="Share to TikTok"
-                  className="flex flex-col items-center justify-center gap-1 py-3 rounded-2xl bg-white/[0.05] border border-white/10 hover:bg-white/[0.1] hover:border-white/25 text-white transition active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  <TikTokMark className="w-5 h-5" />
-                  <span className="text-[10px] font-mono uppercase tracking-wider">
-                    TikTok
-                  </span>
-                </button>
-                <button
-                  onClick={handleFacebook}
-                  data-testid="share-facebook-btn"
-                  title="Share to Facebook"
-                  className="flex flex-col items-center justify-center gap-1 py-3 rounded-2xl bg-[rgba(24,119,242,0.12)] border border-[rgba(24,119,242,0.35)] hover:bg-[rgba(24,119,242,0.22)] text-white transition active:scale-95"
-                >
-                  <Facebook className="w-5 h-5" />
-                  <span className="text-[10px] font-mono uppercase tracking-wider">
-                    Facebook
-                  </span>
-                </button>
+
+                <AnimatePresence>
+                  {shareMenuOpen && (
+                    <motion.div
+                      initial={{ opacity: 0, y: 8, scale: 0.96 }}
+                      animate={{ opacity: 1, y: 0, scale: 1 }}
+                      exit={{ opacity: 0, y: 6, scale: 0.97 }}
+                      transition={{ duration: 0.18, ease: "easeOut" }}
+                      role="menu"
+                      data-testid="share-menu-popover"
+                      className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 z-[20] w-[220px] origin-bottom rounded-2xl border border-white/10 bg-[#0b0218]/95 backdrop-blur-xl shadow-2xl shadow-black/60 p-1.5"
+                    >
+                      {/* arrow */}
+                      <span
+                        aria-hidden
+                        className="absolute left-1/2 -translate-x-1/2 -bottom-1 w-2 h-2 rotate-45 bg-[#0b0218]/95 border-r border-b border-white/10"
+                      />
+                      {[
+                        {
+                          key: "x",
+                          label: "Post on X",
+                          icon: <XMark className="w-4 h-4" />,
+                          onClick: handleX,
+                          testid: "share-x-btn",
+                          iconBg: "bg-black",
+                          iconBorder: "border-white/20",
+                          accent: "hover:bg-white/[0.08]",
+                        },
+                        {
+                          key: "instagram",
+                          label: "Share to Instagram",
+                          icon: <Instagram className="w-4 h-4" />,
+                          onClick: handleInstagram,
+                          testid: "share-instagram-btn",
+                          iconBg:
+                            "bg-gradient-to-br from-[#feda77] via-[#d62976] to-[#4f5bd5]",
+                          iconBorder: "border-white/10",
+                          accent: "hover:bg-pink-500/10",
+                        },
+                        {
+                          key: "tiktok",
+                          label: "Share to TikTok",
+                          icon: <TikTokMark className="w-4 h-4" />,
+                          onClick: handleTikTok,
+                          testid: "share-tiktok-btn",
+                          iconBg: "bg-black",
+                          iconBorder: "border-cyan-300/30",
+                          accent: "hover:bg-cyan-500/10",
+                        },
+                        {
+                          key: "facebook",
+                          label: "Share to Facebook",
+                          icon: <Facebook className="w-4 h-4" />,
+                          onClick: handleFacebook,
+                          testid: "share-facebook-btn",
+                          iconBg: "bg-[#1877f2]",
+                          iconBorder: "border-[#1877f2]/40",
+                          accent: "hover:bg-[#1877f2]/15",
+                        },
+                      ].map((opt, i) => (
+                        <motion.button
+                          key={opt.key}
+                          initial={{ opacity: 0, x: -6 }}
+                          animate={{ opacity: 1, x: 0 }}
+                          transition={{ delay: 0.04 * i, duration: 0.15 }}
+                          onClick={() => {
+                            setShareMenuOpen(false);
+                            opt.onClick();
+                          }}
+                          data-testid={opt.testid}
+                          role="menuitem"
+                          className={`w-full flex items-center gap-3 px-2.5 py-2 rounded-xl text-left text-[13px] text-zinc-100 transition ${opt.accent}`}
+                        >
+                          <span
+                            className={`flex items-center justify-center w-8 h-8 rounded-full border text-white ${opt.iconBg} ${opt.iconBorder}`}
+                          >
+                            {opt.icon}
+                          </span>
+                          <span className="font-medium tracking-tight">
+                            {opt.label}
+                          </span>
+                        </motion.button>
+                      ))}
+                      <div className="h-px bg-white/5 my-1 mx-2" />
+                      <button
+                        onClick={() => {
+                          setShareMenuOpen(false);
+                          handleNativeShare();
+                        }}
+                        role="menuitem"
+                        data-testid="share-native-fallback"
+                        className="w-full flex items-center gap-3 px-2.5 py-2 rounded-xl text-left text-[12px] text-zinc-400 hover:text-white hover:bg-white/[0.06] transition"
+                      >
+                        <span className="flex items-center justify-center w-8 h-8 rounded-full border border-white/10 bg-white/[0.04]">
+                          <Share2 className="w-4 h-4" />
+                        </span>
+                        <span>More… (system share)</span>
+                      </button>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
               </div>
             </div>
 

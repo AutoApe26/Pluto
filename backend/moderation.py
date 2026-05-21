@@ -291,17 +291,33 @@ def detect_link(text: str) -> bool:
     return bool(_URL_RE.search(text))
 
 
+# Categories that get RELAXED under Parental-Advisory / lyrics mode.
+# This is the "artistic expression" set — explicit lyrics on Pluto can
+# carry sexual content, hate-style aggression (a lot of rap/punk uses
+# slurs/insults for effect), and exaggerated/false claims (lyrics are
+# hyperbolic by nature). Everything OUTSIDE this set — doxxing, minors,
+# piracy, scams, terror, self-harm, links, morse code — stays blocked
+# because none of those are "lyrical expression", they are illegal or
+# unsafe content full-stop.
+_LYRICS_RELAXED_CATEGORIES = {
+    "sexual content",
+    "hate/harassment",
+    "misinformation",
+}
+
+
 def detect_blocked_category(text: str, allow_sexual: bool = False) -> Optional[str]:
     """Return the human label of the first blocked category found, or None.
 
-    If ``allow_sexual`` is true, the 'sexual content' category is skipped
-    (used for #music topic lyrics, where some adult language is fine but
-    hate/self-harm/doxxing/etc. must still be blocked).
+    When ``allow_sexual`` is true (used as the legacy name for "lyrics mode"),
+    the categories in ``_LYRICS_RELAXED_CATEGORIES`` are skipped. The
+    illegal/extreme categories (doxxing, minors, piracy, scams, terror,
+    self-harm) are still enforced even in lyrics mode.
     """
     collapsed = _collapse(text)
     squashed = _squash(text)
     for label, prepped in _CATEGORIES_PREP:
-        if allow_sexual and label == "sexual content":
+        if allow_sexual and label in _LYRICS_RELAXED_CATEGORIES:
             continue
         for pattern, sq in prepped:
             if pattern.search(collapsed):

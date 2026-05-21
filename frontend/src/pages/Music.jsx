@@ -20,8 +20,33 @@ export const MusicPage = () => {
     }
   };
 
+  // Silent refresh — used by the polling loop so engagement-loop hugs/fugs
+  // bumps from the backend show up without a manual page refresh.
+  const refresh = async () => {
+    try {
+      setTracks(await api.music());
+    } catch {
+      /* keep current state */
+    }
+  };
+
   useEffect(() => {
     load();
+  }, []);
+
+  useEffect(() => {
+    const tick = () => {
+      if (document.visibilityState === "visible") refresh();
+    };
+    const id = setInterval(tick, 12000);
+    const onVis = () => {
+      if (document.visibilityState === "visible") refresh();
+    };
+    document.addEventListener("visibilitychange", onVis);
+    return () => {
+      clearInterval(id);
+      document.removeEventListener("visibilitychange", onVis);
+    };
   }, []);
 
   return (

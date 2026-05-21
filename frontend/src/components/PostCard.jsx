@@ -66,6 +66,20 @@ export const PostCard = ({ post, index = 0 }) => {
     };
   }, [post.id]);
 
+  // Keep hugs/fugs in sync with refreshed prop values from the Feed's
+  // polling loop, but DON'T clobber an in-flight optimistic update.
+  // We trust the server count whenever it's >= the local count.
+  useEffect(() => {
+    if (busy) return;
+    const incoming = post.hugs ?? 0;
+    if (incoming >= hugs) setHugs(incoming);
+  }, [post.hugs, busy]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    if (busy) return;
+    const incoming = post.fugs ?? 0;
+    if (incoming >= fugs) setFugs(incoming);
+  }, [post.fugs, busy]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const react = async (e, type) => {
     e.stopPropagation();
     if (busy) return;

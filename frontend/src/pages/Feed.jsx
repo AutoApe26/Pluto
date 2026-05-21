@@ -22,6 +22,17 @@ export const Feed = ({ topics }) => {
     }
   };
 
+  // Silent refresh (no spinner) — used by the polling loop so the user
+  // sees bot hugs/fugs landing on their own posts in near-real time.
+  const refresh = async (t) => {
+    try {
+      const data = await api.posts(t);
+      setPosts(data);
+    } catch {
+      /* swallow — keep showing whatever we already have */
+    }
+  };
+
   useEffect(() => {
     const urlTopic = searchParams.get("topic");
     if (urlTopic && urlTopic !== active) {
@@ -37,6 +48,25 @@ export const Feed = ({ topics }) => {
     } else {
       setSearchParams({}, { replace: true });
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [active]);
+
+  // Poll every 12s while the tab is visible so hugs/fugs increments from
+  // the backend engagement loop (bots reacting to posts) actually show up
+  // in the UI without a manual refresh.
+  useEffect(() => {
+    const tick = () => {
+      if (document.visibilityState === "visible") refresh(active);
+    };
+    const id = setInterval(tick, 12000);
+    const onVis = () => {
+      if (document.visibilityState === "visible") refresh(active);
+    };
+    document.addEventListener("visibilitychange", onVis);
+    return () => {
+      clearInterval(id);
+      document.removeEventListener("visibilitychange", onVis);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [active]);
 
