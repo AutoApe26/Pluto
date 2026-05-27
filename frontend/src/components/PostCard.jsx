@@ -4,6 +4,8 @@ import { Heart, ThumbsDown, Share2, Languages, Loader2 } from "lucide-react";
 import { TimeRemainingBadge } from "./TimeRemainingBadge";
 import { ReportButton } from "./ReportButton";
 import { ShareCardModal } from "./ShareCardModal";
+import { ExplicitBadge } from "./ExplicitBadge";
+import { isExplicitPost } from "../lib/explicit";
 import { relativeTime } from "../lib/format";
 import { api } from "../lib/api";
 
@@ -128,7 +130,7 @@ export const PostCard = ({ post, index = 0 }) => {
       }}
     >
       <div className="flex items-center justify-between mb-3">
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           <span
             className="text-[10px] px-2.5 py-1 rounded-full font-mono uppercase tracking-wider border"
             style={{
@@ -140,6 +142,9 @@ export const PostCard = ({ post, index = 0 }) => {
           >
             #{post.topic}
           </span>
+          {isExplicitPost(post) && (
+            <ExplicitBadge testId={`explicit-badge-${post.id}`} />
+          )}
           <span className="text-xs text-zinc-500">
             {relativeTime(post.created_at)}
           </span>

@@ -8,11 +8,15 @@ import {
   Music as MusicIcon,
   Languages,
   Loader2,
+  Share2,
 } from "lucide-react";
 import { toast } from "sonner";
 import { api } from "../lib/api";
 import { ReportButton } from "./ReportButton";
 import { TimeRemainingBadge } from "./TimeRemainingBadge";
+import { ShareCardModal } from "./ShareCardModal";
+import { ExplicitBadge } from "./ExplicitBadge";
+import { isExplicitTrack } from "../lib/explicit";
 
 const FALLBACK_COVERS = [
   "https://static.prod-images.emergentagent.com/jobs/9e88d8f6-abc5-4041-b787-3d490a873302/images/d0a9d09aec04baea11248d881ee3e510f44a976c4db80243bef23e8e7c42b8bb.png",
@@ -46,6 +50,7 @@ export const MusicCard = ({ track, index = 0 }) => {
   const [fugs, setFugs] = useState(track.fugs || 0);
   const [my, setMy] = useState(null);
   const [showEmbed, setShowEmbed] = useState(false);
+  const [shareOpen, setShareOpen] = useState(false);
 
   // Caption translation state (Gemini 2.5 Flash, same as posts)
   const captionForeign =
@@ -207,6 +212,14 @@ export const MusicCard = ({ track, index = 0 }) => {
             </div>
           )}
 
+          {/* Auto-flagged explicit content (profanity / sexual / drugs).
+              Renders alongside (or instead of) the PA Lyrics badge. */}
+          {!track.is_lyrics && isExplicitTrack(track) && (
+            <div className="mt-2">
+              <ExplicitBadge testId={`music-explicit-${track.id}`} />
+            </div>
+          )}
+
           {captionForeign && (
             <div className="mt-2 flex flex-col gap-2">
               <button
@@ -331,6 +344,19 @@ export const MusicCard = ({ track, index = 0 }) => {
           </button>
         </div>
         <div className="flex items-center gap-1">
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              setShareOpen(true);
+            }}
+            data-testid={`music-share-btn-${track.id}`}
+            title="Share as Pluto pluck card"
+            className="inline-flex items-center gap-1 text-xs text-zinc-300 hover:text-white px-2.5 py-1 rounded-full border border-white/10 hover:border-purple-400/40 hover:bg-purple-500/10 transition active:scale-95"
+          >
+            <Share2 className="w-3.5 h-3.5" />
+            <span className="font-mono uppercase tracking-wider">Share</span>
+          </button>
           {track.provider !== "youtube" && track.link_url && (
             <a
               href={track.link_url}
@@ -346,6 +372,12 @@ export const MusicCard = ({ track, index = 0 }) => {
           <ReportButton targetType="music" targetId={track.id} />
         </div>
       </div>
+
+      <ShareCardModal
+        open={shareOpen}
+        onClose={() => setShareOpen(false)}
+        track={{ ...track, hugs, fugs, cover }}
+      />
     </motion.div>
   );
 };

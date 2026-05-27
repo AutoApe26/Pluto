@@ -24,6 +24,8 @@ import { CosmicBg } from "../components/CosmicBg";
 import { PlutoSphere } from "../components/Logo";
 import { TimeRemainingBadge } from "../components/TimeRemainingBadge";
 import { TopicsGrid } from "../components/TopicsGrid";
+import { ExplicitBadge } from "../components/ExplicitBadge";
+import { isExplicitPost } from "../lib/explicit";
 import { api } from "../lib/api";
 import { timeRemaining } from "../lib/format";
 
@@ -128,18 +130,31 @@ export const Landing = ({ onCreate }) => {
     api.featuredMusic().then(setMusic).catch(() => {});
   }, []);
 
+  // Trending priority — Crypto → Music → Mental Health → Confession,
+  // everything else after. We start from the API trending list, then
+  // top-up any missing topic with the curated FALLBACK_POSTS so all 8
+  // topics stay visible at all times. Stable secondary sort by original
+  // index preserves chronology within each topic bucket.
   const trendList = (() => {
-    const list = (trending.length ? trending : FALLBACK_POSTS).slice();
-    // Trending priority — Crypto → Music → Mental Health → Confession,
-    // everything else after. Stable sort keeps original chronology within
-    // each topic bucket.
     const priority = {
       crypto: 0,
       music: 1,
       "mental-health": 2,
       confession: 3,
+      sports: 4,
+      memes: 5,
+      rant: 6,
+      stories: 7,
     };
-    return list
+    const source = (trending.length ? trending : []).slice();
+    const seenTopics = new Set(source.map((p) => p.topic));
+    for (const fb of FALLBACK_POSTS) {
+      if (!seenTopics.has(fb.topic)) {
+        source.push(fb);
+        seenTopics.add(fb.topic);
+      }
+    }
+    return source
       .map((p, i) => ({ p, i, rank: priority[p.topic] ?? 99 }))
       .sort((a, b) => a.rank - b.rank || a.i - b.i)
       .map(({ p }) => p)
@@ -251,12 +266,15 @@ export const Landing = ({ onCreate }) => {
               >
                 {/* Top row: meta + arrow */}
                 <div className="flex items-center justify-between gap-3">
-                  <div className="flex items-center gap-2 min-w-0">
+                  <div className="flex items-center gap-2 min-w-0 flex-wrap">
                     <Icon className="w-4 h-4 shrink-0" style={{ color }} />
                     {p.sudo_name && (
                       <span className="text-[11px] font-mono text-zinc-400 truncate">
                         {p.sudo_name}
                       </span>
+                    )}
+                    {isExplicitPost(p) && (
+                      <ExplicitBadge testId={`trending-explicit-${p.id}`} />
                     )}
                   </div>
                   <div className="flex items-center gap-3">

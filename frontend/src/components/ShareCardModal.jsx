@@ -41,32 +41,60 @@ const TOPIC_COLORS = {
 /**
  * Off-screen 1080x1350 "pluck card" that gets rasterized via html2canvas,
  * and exposes Download / native-share / Twitter / Facebook compose actions.
+ *
+ * Accepts EITHER a `post` prop (text post) OR a `track` prop (music). The
+ * card layout adapts automatically — music cards show the cover art, title,
+ * artist, provider badge and hugs/fugs; post cards keep the original
+ * text-first layout.
  */
-export const ShareCardModal = ({ open, onClose, post }) => {
+export const ShareCardModal = ({ open, onClose, post, track }) => {
+  // Normalize: treat either prop uniformly. We keep `post` semantics
+  // (id, hugs, fugs, expires_at, sudo_name, device_id, topic) and add
+  // music-specific fields when a track is passed.
+  const isMusic = !!track && !post;
+  const item = isMusic
+    ? {
+        id: track.id,
+        topic: "music",
+        content: track.caption || "",
+        title: track.title,
+        artist: track.artist,
+        provider: track.provider,
+        cover: track.cover || track.thumbnail,
+        hugs: track.hugs ?? 0,
+        fugs: track.fugs ?? 0,
+        expires_at: track.expires_at,
+        sudo_name: track.sudo_name,
+        device_id: track.device_id,
+        is_lyrics: track.is_lyrics,
+        lang: track.lang,
+      }
+    : post;
+
   const cardRef = useRef(null);
   const [previewUrl, setPreviewUrl] = useState(null);
   const [blob, setBlob] = useState(null);
   const [busy, setBusy] = useState(false);
   const [remaining, setRemaining] = useState(
-    post ? timeRemaining(post.expires_at) : ""
+    item ? timeRemaining(item.expires_at) : ""
   );
 
   // Tick the expiry timer while open
   useEffect(() => {
-    if (!open || !post) return;
-    setRemaining(timeRemaining(post.expires_at));
+    if (!open || !item) return;
+    setRemaining(timeRemaining(item.expires_at));
     const id = setInterval(
-      () => setRemaining(timeRemaining(post.expires_at)),
+      () => setRemaining(timeRemaining(item.expires_at)),
       30 * 1000
     );
     return () => clearInterval(id);
-  }, [open, post]);
+  }, [open, item]);
 
   // When modal opens, auto-render the share card to a PNG so the user
   // sees a real preview of what they'll download/share.
   useEffect(() => {
     let cancelled = false;
-    if (!open || !post) {
+    if (!open || !item) {
       setPreviewUrl((u) => {
         if (u) URL.revokeObjectURL(u);
         return null;
@@ -111,17 +139,19 @@ export const ShareCardModal = ({ open, onClose, post }) => {
       cancelled = true;
       clearTimeout(t);
     };
-  }, [open, post, remaining]);
+  }, [open, item, remaining]);
 
-  if (!post) return null;
-  const color = TOPIC_COLORS[post.topic] || "#00F0FF";
-  const author = post.sudo_name || `anon · ${post.device_id?.slice(-6) || ""}`;
-  // Direct link to the specific post — anyone with this URL can open it
-  // even if they aren't running the app yet.
+  if (!item) return null;
+  const color = TOPIC_COLORS[item.topic] || "#00F0FF";
+  const author = item.sudo_name || `anon · ${item.device_id?.slice(-6) || ""}`;
+  // Direct link to the specific post/track — anyone with this URL can open
+  // it even if they aren't running the app yet.
   const shareUrl =
     typeof window !== "undefined"
-      ? `${window.location.origin}/post/${post.id}`
+      ? `${window.location.origin}${isMusic ? "/music" : "/post/" + item.id}`
       : "";
+
+  const safeId = item.id?.slice(0, 8) || (isMusic ? "track" : "post");
 
   const handleDownload = () => {
     if (!blob || !previewUrl) {
@@ -130,7 +160,7 @@ export const ShareCardModal = ({ open, onClose, post }) => {
     }
     const a = document.createElement("a");
     a.href = previewUrl;
-    a.download = `pluto-${post.id?.slice(0, 8) || "post"}.png`;
+    a.download = `pluto-${isMusic ? "track" : "post"}-${safeId}.png`;
     document.body.appendChild(a);
     a.click();
     a.remove();
@@ -142,7 +172,7 @@ export const ShareCardModal = ({ open, onClose, post }) => {
     if (!blob || !previewUrl) return false;
     const a = document.createElement("a");
     a.href = previewUrl;
-    a.download = `pluto-${post.id?.slice(0, 8) || "post"}.png`;
+    a.download = `pluto-${isMusic ? "track" : "post"}-${safeId}.png`;
     document.body.appendChild(a);
     a.click();
     a.remove();
@@ -158,17 +188,21 @@ export const ShareCardModal = ({ open, onClose, post }) => {
     }
   };
 
+  const shareText = isMusic
+    ? `${item.title ? `"${item.title}"` : "this track"}${item.artist ? ` by ${item.artist}` : ""} — found on Pluto.`
+    : "Saw this on Pluto. Vanishes in 24h.";
+
   const handleNativeShare = async () => {
     if (!blob) {
       toast.message("Still rendering — try again in a sec");
       return;
     }
-    const file = new File([blob], `pluto-${post.id?.slice(0, 8)}.png`, {
+    const file = new File([blob], `pluto-${safeId}.png`, {
       type: "image/png",
     });
     const shareData = {
       title: "Pluto",
-      text: "Saw this on Pluto. Vanishes in 24h.",
+      text: shareText,
       url: shareUrl,
       files: [file],
     };
@@ -180,7 +214,7 @@ export const ShareCardModal = ({ open, onClose, post }) => {
       if (navigator.share) {
         await navigator.share({
           title: "Pluto",
-          text: "Saw this on Pluto. Vanishes in 24h.",
+          text: shareText,
           url: shareUrl,
         });
         return;
@@ -195,12 +229,12 @@ export const ShareCardModal = ({ open, onClose, post }) => {
 
   const handleCopyLink = async () => {
     const ok = await copyToClipboard(shareUrl);
-    if (ok) toast.success("Post link copied — paste it anywhere");
+    if (ok) toast.success("Link copied — paste it anywhere");
     else toast.error("Couldn't copy link");
   };
 
   const handleX = () => {
-    const text = encodeURIComponent("Saw this on Pluto. Vanishes in 24h.");
+    const text = encodeURIComponent(shareText);
     const url = encodeURIComponent(shareUrl);
     window.open(
       `https://twitter.com/intent/tweet?text=${text}&url=${url}`,
@@ -277,7 +311,8 @@ export const ShareCardModal = ({ open, onClose, post }) => {
           >
             <ShareCardCanvas
               refEl={cardRef}
-              post={post}
+              item={item}
+              isMusic={isMusic}
               color={color}
               author={author}
               remaining={remaining}
@@ -304,7 +339,9 @@ export const ShareCardModal = ({ open, onClose, post }) => {
             {/* Header */}
             <div className="flex items-start justify-between px-5 sm:px-6 pt-3 sm:pt-6 pb-2 shrink-0">
               <div>
-                <h2 className="font-display text-xl sm:text-2xl">Share this pluck</h2>
+                <h2 className="font-display text-xl sm:text-2xl">
+                  {isMusic ? "Share this track" : "Share this pluck"}
+                </h2>
                 <p className="text-xs sm:text-sm text-zinc-400 mt-0.5">
                   Story-ready 1080×1350. Branded for $PNF.
                 </p>
@@ -347,7 +384,9 @@ export const ShareCardModal = ({ open, onClose, post }) => {
               >
                 <span className="flex items-center gap-2">
                   <LinkIcon className="w-3.5 h-3.5" />
-                  <span className="uppercase tracking-wider">Copy post link</span>
+                  <span className="uppercase tracking-wider">
+                    {isMusic ? "Copy track link" : "Copy post link"}
+                  </span>
                 </span>
                 <span className="truncate max-w-[55%] text-zinc-500 text-[10px]">
                   {shareUrl.replace(/^https?:\/\//, "")}
@@ -464,8 +503,10 @@ export const ShareCardModal = ({ open, onClose, post }) => {
   );
 };
 
-/** Off-screen, fixed-dimension card rendered to PNG by html2canvas. */
-const ShareCardCanvas = ({ refEl, post, color, author, remaining }) => {
+/** Off-screen, fixed-dimension card rendered to PNG by html2canvas.
+ *  Renders either a text-post layout or a music-track layout depending
+ *  on the `isMusic` flag. */
+const ShareCardCanvas = ({ refEl, item, isMusic, color, author, remaining }) => {
   return (
     <div
       ref={refEl}
@@ -537,7 +578,7 @@ const ShareCardCanvas = ({ refEl, post, color, author, remaining }) => {
       </div>
 
       {/* Topic pill */}
-      <div style={{ marginTop: 56 }}>
+      <div style={{ marginTop: 56, display: "flex", gap: 14, flexWrap: "wrap" }}>
         <span
           style={{
             display: "inline-block",
@@ -552,8 +593,33 @@ const ShareCardCanvas = ({ refEl, post, color, author, remaining }) => {
             border: `1px solid ${color}66`,
           }}
         >
-          #{post.topic}
+          #{item.topic}
         </span>
+        {isMusic && item.provider && (
+          <span
+            style={{
+              display: "inline-block",
+              fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace",
+              fontSize: 22,
+              letterSpacing: 3,
+              textTransform: "uppercase",
+              padding: "12px 22px",
+              borderRadius: 999,
+              color:
+                item.provider === "spotify" ? "#1ed760" : "#ff4d4d",
+              background:
+                item.provider === "spotify"
+                  ? "rgba(30,215,96,0.12)"
+                  : "rgba(255,77,77,0.12)",
+              border:
+                item.provider === "spotify"
+                  ? "1px solid rgba(30,215,96,0.45)"
+                  : "1px solid rgba(255,77,77,0.45)",
+            }}
+          >
+            ♫ {item.provider}
+          </span>
+        )}
       </div>
 
       {/* Body */}
@@ -565,43 +631,11 @@ const ShareCardCanvas = ({ refEl, post, color, author, remaining }) => {
           flexDirection: "column",
         }}
       >
-        <div
-          style={{
-            fontSize: clampFontSize(post.content || ""),
-            lineHeight: 1.25,
-            fontWeight: 600,
-            letterSpacing: -0.5,
-            color: "#ffffff",
-            whiteSpace: "pre-wrap",
-            wordBreak: "break-word",
-          }}
-        >
-          {truncate(post.content || "", 360)}
-        </div>
-
-        {post.image ? (
-          <div
-            style={{
-              marginTop: 36,
-              borderRadius: 28,
-              overflow: "hidden",
-              border: "1px solid rgba(255,255,255,0.1)",
-              maxHeight: 460,
-            }}
-          >
-            <img
-              src={post.image}
-              alt=""
-              crossOrigin="anonymous"
-              style={{
-                display: "block",
-                width: "100%",
-                maxHeight: 460,
-                objectFit: "cover",
-              }}
-            />
-          </div>
-        ) : null}
+        {isMusic ? (
+          <MusicCanvasBody item={item} />
+        ) : (
+          <PostCanvasBody item={item} />
+        )}
       </div>
 
       {/* Stats */}
@@ -624,7 +658,7 @@ const ShareCardCanvas = ({ refEl, post, color, author, remaining }) => {
             color: "#fbcfe8",
           }}
         >
-          ♥ {post.hugs ?? 0} HUG
+          ♥ {item.hugs ?? 0} HUG
         </div>
         <div
           style={{
@@ -635,7 +669,7 @@ const ShareCardCanvas = ({ refEl, post, color, author, remaining }) => {
             color: "#e4e4e7",
           }}
         >
-          ⏷ {post.fugs ?? 0} FUG
+          ⏷ {item.fugs ?? 0} FUG
         </div>
         <div
           style={{
@@ -678,6 +712,138 @@ const ShareCardCanvas = ({ refEl, post, color, author, remaining }) => {
     </div>
   );
 };
+
+/** Text-post body — original layout. */
+const PostCanvasBody = ({ item }) => (
+  <>
+    <div
+      style={{
+        fontSize: clampFontSize(item.content || ""),
+        lineHeight: 1.25,
+        fontWeight: 600,
+        letterSpacing: -0.5,
+        color: "#ffffff",
+        whiteSpace: "pre-wrap",
+        wordBreak: "break-word",
+      }}
+    >
+      {truncate(item.content || "", 360)}
+    </div>
+
+    {item.image ? (
+      <div
+        style={{
+          marginTop: 36,
+          borderRadius: 28,
+          overflow: "hidden",
+          border: "1px solid rgba(255,255,255,0.1)",
+          maxHeight: 460,
+        }}
+      >
+        <img
+          src={item.image}
+          alt=""
+          crossOrigin="anonymous"
+          style={{
+            display: "block",
+            width: "100%",
+            maxHeight: 460,
+            objectFit: "cover",
+          }}
+        />
+      </div>
+    ) : null}
+  </>
+);
+
+/** Music-track body — cover art + song title + artist + optional caption. */
+const MusicCanvasBody = ({ item }) => {
+  const title = item.title || "Untitled track";
+  const artist = item.artist || "";
+  return (
+    <>
+      {item.cover ? (
+        <div
+          style={{
+            borderRadius: 32,
+            overflow: "hidden",
+            border: "1px solid rgba(255,255,255,0.12)",
+            boxShadow: "0 30px 80px rgba(0,0,0,0.5)",
+            width: 420,
+            height: 420,
+            marginBottom: 28,
+          }}
+        >
+          <img
+            src={item.cover}
+            alt=""
+            crossOrigin="anonymous"
+            style={{
+              display: "block",
+              width: "100%",
+              height: "100%",
+              objectFit: "cover",
+            }}
+          />
+        </div>
+      ) : null}
+
+      <div
+        style={{
+          fontSize: clampSongTitleSize(title),
+          lineHeight: 1.05,
+          fontWeight: 800,
+          letterSpacing: -1,
+          color: "#ffffff",
+          whiteSpace: "pre-wrap",
+          wordBreak: "break-word",
+          textShadow: "0 0 30px rgba(176,38,255,0.5)",
+        }}
+      >
+        {truncate(title, 90)}
+      </div>
+
+      {artist ? (
+        <div
+          style={{
+            marginTop: 12,
+            fontSize: 36,
+            color: "rgba(255,255,255,0.78)",
+            fontWeight: 500,
+            letterSpacing: -0.3,
+          }}
+        >
+          by {truncate(artist, 70)}
+        </div>
+      ) : null}
+
+      {item.content ? (
+        <div
+          style={{
+            marginTop: 22,
+            fontSize: 26,
+            lineHeight: 1.35,
+            color: "rgba(255,255,255,0.7)",
+            fontStyle: item.is_lyrics ? "italic" : "normal",
+            whiteSpace: "pre-wrap",
+            wordBreak: "break-word",
+          }}
+        >
+          {item.is_lyrics ? "♫ " : ""}
+          {truncate(item.content, 220)}
+        </div>
+      ) : null}
+    </>
+  );
+};
+
+function clampSongTitleSize(text) {
+  const n = (text || "").length;
+  if (n <= 18) return 96;
+  if (n <= 30) return 80;
+  if (n <= 50) return 64;
+  return 52;
+}
 
 function clampFontSize(text) {
   const n = text.length;
