@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import {
   Play,
+  Pause,
   Heart,
   ThumbsDown,
   ExternalLink,
@@ -17,6 +18,7 @@ import { TimeRemainingBadge } from "./TimeRemainingBadge";
 import { ShareCardModal } from "./ShareCardModal";
 import { ExplicitBadge } from "./ExplicitBadge";
 import { isExplicitTrack } from "../lib/explicit";
+import { useMusicPlayer } from "../lib/MusicPlayerContext";
 
 const FALLBACK_COVERS = [
   "https://static.prod-images.emergentagent.com/jobs/9e88d8f6-abc5-4041-b787-3d490a873302/images/d0a9d09aec04baea11248d881ee3e510f44a976c4db80243bef23e8e7c42b8bb.png",
@@ -24,33 +26,22 @@ const FALLBACK_COVERS = [
   "https://static.prod-images.emergentagent.com/jobs/9e88d8f6-abc5-4041-b787-3d490a873302/images/c8cf273ab43d9cecad200f4ff4c2787881f84f1f2ed48ed02617d136a5174162.png",
 ];
 
-// Convert a Spotify or YouTube link into an embed URL
-const buildEmbedUrl = (track) => {
-  if (!track.link_url) return null;
-  if (track.provider === "spotify") {
-    // open.spotify.com/track/ID -> open.spotify.com/embed/track/ID
-    return track.link_url.replace(
-      /open\.spotify\.com\/(track|album|playlist|episode)\//,
-      "open.spotify.com/embed/$1/"
-    );
-  }
-  if (track.provider === "youtube") {
-    let id = "";
-    const m1 = track.link_url.match(/youtu\.be\/([\w-]+)/);
-    const m2 = track.link_url.match(/[?&]v=([\w-]+)/);
-    const m3 = track.link_url.match(/youtube\.com\/shorts\/([\w-]+)/);
-    id = (m1 && m1[1]) || (m2 && m2[1]) || (m3 && m3[1]) || "";
-    if (id) return `https://www.youtube.com/embed/${id}`;
-  }
-  return null;
-};
+// FALLBACK covers used when a track has no thumbnail. Embed URL handling
+// has moved to /app/frontend/src/components/MiniPlayer.jsx — the iframe
+// is now mounted there so audio survives route changes.
 
 export const MusicCard = ({ track, index = 0 }) => {
   const [hugs, setHugs] = useState(track.hugs || 0);
   const [fugs, setFugs] = useState(track.fugs || 0);
   const [my, setMy] = useState(null);
-  const [showEmbed, setShowEmbed] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
+
+  // Persistent playback — handled by the global MiniPlayer. Clicking
+  // Play here just tells the player which track to load; the iframe
+  // itself lives in <MiniPlayer/> and survives route changes so audio
+  // keeps playing when the user navigates away.
+  const { track: nowPlaying, playTrack, stopPlayback } = useMusicPlayer();
+  const isThisPlaying = !!nowPlaying && nowPlaying.id === track.id;
 
   // Caption translation state (Gemini 2.5 Flash, same as posts)
   const captionForeign =
@@ -83,7 +74,6 @@ export const MusicCard = ({ track, index = 0 }) => {
 
   const cover =
     track.thumbnail || FALLBACK_COVERS[index % FALLBACK_COVERS.length];
-  const embedUrl = buildEmbedUrl(track);
   const displayName = track.sudo_name || `anon · ${track.device_id?.slice(-6)}`;
 
   const [busy, setBusy] = useState(false);
@@ -279,31 +269,46 @@ export const MusicCard = ({ track, index = 0 }) => {
         </div>
       </div>
 
-      {/* Play button + embed */}
+      {/* Play button — sends track to the persistent MiniPlayer.
+          When this track is the one currently playing, the button
+          flips to "Pause" semantics (which stops global playback). */}
       <div className="mt-4">
-        {showEmbed && embedUrl ? (
-          <div
-            className="rounded-2xl overflow-hidden border border-white/10"
-            data-testid={`embed-${track.id}`}
-          >
-            <iframe
-              src={embedUrl}
-              title={track.title || "track"}
-              loading="lazy"
-              allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
-              className={`w-full ${track.provider === "youtube" ? "aspect-video" : "h-[152px]"}`}
-            />
-          </div>
-        ) : (
-          <button
-            onClick={() => setShowEmbed(true)}
-            data-testid={`play-${track.id}`}
-            className="w-full inline-flex items-center justify-center gap-2 rounded-full py-2.5 text-sm font-medium text-white bg-gradient-to-r from-purple-500 to-fuchsia-500 hover:opacity-95 transition shadow-lg shadow-purple-500/20"
-          >
-            <Play className="w-4 h-4 fill-white" />
-            Play
-          </button>
-        )}
+        <button
+          onClick={() => {
+            if (isThisPlaying) {
+              stopPlayback();
+            } else {
+              playTrack({
+                id: track.id,
+                title: track.title,
+                artist: track.artist,
+                provider: track.provider,
+                link_url: track.link_url,
+                cover,
+                thumbnail: track.thumbnail,
+              });
+              toast.success("Playing — keeps going while you browse.");
+            }
+          }}
+          data-testid={`play-${track.id}`}
+          className={`w-full inline-flex items-center justify-center gap-2 rounded-full py-2.5 text-sm font-medium text-white transition shadow-lg ${
+            isThisPlaying
+              ? "bg-gradient-to-r from-pink-500 to-fuchsia-600 shadow-pink-500/30"
+              : "bg-gradient-to-r from-purple-500 to-fuchsia-500 shadow-purple-500/20 hover:opacity-95"
+          }`}
+        >
+          {isThisPlaying ? (
+            <>
+              <Pause className="w-4 h-4 fill-white" />
+              Stop playback
+            </>
+          ) : (
+            <>
+              <Play className="w-4 h-4 fill-white" />
+              Play
+            </>
+          )}
+        </button>
       </div>
 
       <div className="mt-4 flex items-center justify-between">

@@ -5,6 +5,8 @@ import { Toaster } from "sonner";
 import { Header } from "./components/Header";
 import { BottomNav } from "./components/BottomNav";
 import { CreatePostModal } from "./components/CreatePostModal";
+import { MiniPlayer } from "./components/MiniPlayer";
+import { MusicPlayerProvider } from "./lib/MusicPlayerContext";
 import { Landing } from "./pages/Landing";
 import { Feed } from "./pages/Feed";
 import { MusicPage } from "./pages/Music";
@@ -56,6 +58,7 @@ function Shell() {
         </Routes>
       </main>
       {!isMod && <BottomNav onCreate={() => setCreateOpen(true)} />}
+      {!isMod && <MiniPlayer />}
       <CreatePostModal
         open={createOpen}
         onClose={() => setCreateOpen(false)}
@@ -81,7 +84,9 @@ function Shell() {
 function App() {
   return (
     <BrowserRouter>
-      <Shell />
+      <MusicPlayerProvider>
+        <Shell />
+      </MusicPlayerProvider>
     </BrowserRouter>
   );
 }

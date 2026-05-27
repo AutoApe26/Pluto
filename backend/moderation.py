@@ -87,15 +87,52 @@ _HARASSMENT = {
     "world without you", "world would be better without you",
     "the world would be better off without you",
     "i hope you die", "hope u die", "wish you were dead", "wish u were dead",
-    # threats
+    # threats — kill / murder / hurt
     "i will kill you", "i'll kill you", "ill kill you", "imma kill you",
-    "gonna kill you", "going to kill you", "i'll murder you", "ill murder you",
-    "i'll hurt you", "ill hurt you", "i'll find you", "ill find you and",
-    "i'll rape", "ill rape", "i will rape", "gonna rape",
+    "gonna kill you", "going to kill you", "i will murder you",
+    "i'll murder you", "ill murder you", "imma murder you",
+    "gonna murder you", "i'll hurt you", "ill hurt you", "imma hurt you",
+    "i'll find you", "ill find you and", "i will find you and",
+    "i'll come for you", "ill come for you", "coming for you",
+    "i'll rape", "ill rape", "i will rape", "gonna rape", "imma rape",
+    "i'll torture you", "ill torture you", "torture you slowly",
+    # violent threats — physical harm
     "i'll beat", "ill beat the shit", "gonna beat the shit",
+    "beat the shit out of you", "beat the crap out of you",
+    "kick your ass", "kick ur ass", "ill kick your ass",
+    "i'll punch", "ill punch you", "punch your face", "punch ur face",
+    "smash your face", "smash ur face", "break your face", "break ur face",
+    "break your bones", "break ur bones", "break your neck",
+    "snap your neck", "snap ur neck", "wring your neck",
+    "choke you out", "choke u out", "strangle you",
+    "stab you", "stab u", "i'll stab", "ill stab you", "gonna stab",
+    "shoot you", "ill shoot you", "i'll shoot you", "gonna shoot you",
+    "blow your brains", "blow ur brains", "put a bullet in you",
+    "put a bullet in your", "i'll put a bullet",
+    "slit your throat", "slit ur throat", "slice your throat",
+    "cut you up", "cut u up", "i'll cut you", "ill cut you",
+    "burn your house", "burn ur house", "burn down your", "torch your",
+    "burn you alive", "burn u alive",
+    "bury you", "i'll bury you", "ill bury you", "putting you in the ground",
+    "put you in the ground", "in a body bag", "body-bag you",
+    "make you bleed", "watch you bleed", "drown you",
+    "run you over", "running you over",
+    # violent threats — toward groups
+    "lynch them", "lynch him", "lynch her", "lynching them",
+    "string them up", "string him up", "string her up",
+    "hang them all", "hang them high", "hang em all",
     # gendered abuse aimed AT another person (not generic profanity)
     "stupid bitch", "dumb bitch", "fucking whore", "stupid whore",
     "you cunt", "u cunt", "fucking cunt",
+    # abusive insults directed at a person
+    "you're a piece of shit", "youre a piece of shit", "ur a piece of shit",
+    "you piece of shit", "u piece of shit",
+    "you are trash", "youre trash", "ur trash", "you trash",
+    "you are garbage", "youre garbage", "ur garbage",
+    "go fuck yourself", "go fuck urself", "fuck off and die",
+    "eat shit and die", "eat shit", "rot in hell", "burn in hell",
+    "i hate you and hope", "i hate your existence",
+    "subhuman scum", "subhuman trash", "you're subhuman", "youre subhuman",
 }
 _DOXXING = {
     "ssn", "social security number", "social security #",
@@ -327,6 +364,19 @@ def detect_blocked_category(text: str, allow_sexual: bool = False) -> Optional[s
     return None
 
 
+_FRIENDLY_LABELS = {
+    "hate/harassment": "hate speech, threats or abusive language",
+    "doxxing": "personal information / doxxing",
+    "content involving minors": "content involving minors",
+    "piracy": "piracy",
+    "scams/wallet-drainers": "scams or wallet-drainer content",
+    "terror promotion": "violent extremism or terror promotion",
+    "sexual content": "sexual content",
+    "self-harm": "self-harm content",
+    "misinformation": "misinformation",
+}
+
+
 def violation_for(text: str, allow_sexual: bool = False) -> Optional[str]:
     """Return a user-facing reason if ``text`` violates the posting rules.
     Returns None if the post is OK to publish.
@@ -339,12 +389,16 @@ def violation_for(text: str, allow_sexual: bool = False) -> Optional[str]:
     if not text or not text.strip():
         return None
     if detect_link(text):
-        return "Links aren't allowed on Pluto."
+        return "Your post can't be published — links aren't allowed on Pluto."
     if detect_morse_code(text):
-        return "Morse code isn't allowed on Pluto."
+        return "Your post can't be published — morse code isn't allowed on Pluto."
     cat = detect_blocked_category(text, allow_sexual=allow_sexual)
     if cat:
-        return f"Blocked: {cat}."
+        friendly = _FRIENDLY_LABELS.get(cat, cat)
+        return (
+            f"Your post was blocked for {friendly}. "
+            "Pluto doesn't allow threats, hate speech, abuse, or other harmful content."
+        )
     return None
 
 
