@@ -9,7 +9,6 @@ import {
   Link as LinkIcon,
   Share2,
   Loader2,
-  ChevronDown,
 } from "lucide-react";
 import html2canvas from "html2canvas";
 import { toast } from "sonner";
@@ -48,7 +47,6 @@ export const ShareCardModal = ({ open, onClose, post }) => {
   const [previewUrl, setPreviewUrl] = useState(null);
   const [blob, setBlob] = useState(null);
   const [busy, setBusy] = useState(false);
-  const [shareMenuOpen, setShareMenuOpen] = useState(false);
   const [remaining, setRemaining] = useState(
     post ? timeRemaining(post.expires_at) : ""
   );
@@ -74,7 +72,6 @@ export const ShareCardModal = ({ open, onClose, post }) => {
         return null;
       });
       setBlob(null);
-      setShareMenuOpen(false);
       return;
     }
     const t = setTimeout(async () => {
@@ -296,12 +293,19 @@ export const ShareCardModal = ({ open, onClose, post }) => {
             animate={{ y: 0, opacity: 1 }}
             exit={{ y: 30, opacity: 0 }}
             transition={{ type: "spring", damping: 26, stiffness: 240 }}
-            className="relative w-full sm:max-w-md glass-strong rounded-t-3xl sm:rounded-3xl p-5 sm:p-6 m-0 sm:m-4 border border-white/10 max-h-[94vh] overflow-y-auto"
+            className="relative w-full sm:max-w-md glass-strong rounded-t-3xl sm:rounded-3xl border border-white/10 m-0 sm:m-4 max-h-[94vh] flex flex-col overflow-hidden"
+            style={{ paddingBottom: "max(env(safe-area-inset-bottom), 0px)" }}
           >
-            <div className="flex items-start justify-between mb-2">
+            {/* Drag handle on mobile */}
+            <div className="sm:hidden flex justify-center pt-2.5 pb-1 shrink-0">
+              <span className="block w-10 h-1 rounded-full bg-white/20" />
+            </div>
+
+            {/* Header */}
+            <div className="flex items-start justify-between px-5 sm:px-6 pt-3 sm:pt-6 pb-2 shrink-0">
               <div>
-                <h2 className="font-display text-2xl">Share this pluck</h2>
-                <p className="text-sm text-zinc-400 mt-0.5">
+                <h2 className="font-display text-xl sm:text-2xl">Share this pluck</h2>
+                <p className="text-xs sm:text-sm text-zinc-400 mt-0.5">
                   Story-ready 1080×1350. Branded for $PNF.
                 </p>
               </div>
@@ -314,39 +318,56 @@ export const ShareCardModal = ({ open, onClose, post }) => {
               </button>
             </div>
 
-            {/* Live preview from rasterized blob */}
-            <div
-              className="mt-3 rounded-2xl overflow-hidden border border-white/10 bg-black aspect-[4/5] flex items-center justify-center"
-              data-testid="share-card-preview"
-            >
-              {previewUrl ? (
-                <img
-                  src={previewUrl}
-                  alt="Share card preview"
-                  className="w-full h-full object-contain"
-                />
-              ) : (
-                <div className="flex flex-col items-center gap-2 text-zinc-500">
-                  <Loader2 className="w-6 h-6 animate-spin" />
-                  <span className="text-xs font-mono uppercase tracking-widest">
-                    Rendering pluck card…
-                  </span>
-                </div>
-              )}
+            {/* Scrollable middle: preview + copy link */}
+            <div className="flex-1 overflow-y-auto px-5 sm:px-6 pb-3">
+              <div
+                className="rounded-2xl overflow-hidden border border-white/10 bg-black aspect-[4/5] flex items-center justify-center"
+                data-testid="share-card-preview"
+              >
+                {previewUrl ? (
+                  <img
+                    src={previewUrl}
+                    alt="Share card preview"
+                    className="w-full h-full object-contain"
+                  />
+                ) : (
+                  <div className="flex flex-col items-center gap-2 text-zinc-500">
+                    <Loader2 className="w-6 h-6 animate-spin" />
+                    <span className="text-xs font-mono uppercase tracking-widest">
+                      Rendering pluck card…
+                    </span>
+                  </div>
+                )}
+              </div>
+
+              <button
+                onClick={handleCopyLink}
+                data-testid="share-copy-link"
+                className="mt-3 w-full inline-flex items-center justify-between gap-2 rounded-2xl px-4 py-3 text-xs font-mono text-zinc-300 bg-white/[0.04] border border-white/10 hover:text-white hover:border-purple-400/40 hover:bg-purple-500/10 transition"
+              >
+                <span className="flex items-center gap-2">
+                  <LinkIcon className="w-3.5 h-3.5" />
+                  <span className="uppercase tracking-wider">Copy post link</span>
+                </span>
+                <span className="truncate max-w-[55%] text-zinc-500 text-[10px]">
+                  {shareUrl.replace(/^https?:\/\//, "")}
+                </span>
+              </button>
+
+              <p className="mt-3 text-[11px] leading-relaxed text-zinc-500">
+                Instagram & TikTok don't allow auto-uploads from the web —
+                we'll save the PNG and copy the post link so you can paste it
+                into your Story or video caption.
+              </p>
             </div>
 
-            {/*
-              Share menu — hover-reveal dropdown on desktop, tap-toggle on
-              mobile. The menu pops above the button with a stagger of the
-              4 platforms (X / Instagram / TikTok / Facebook) and stays open
-              while either the trigger or the menu itself is hovered.
-            */}
-            <div className="grid grid-cols-2 gap-2 mt-4">
+            {/* Sticky bottom action bar: Download + horizontally scrollable socials */}
+            <div className="shrink-0 border-t border-white/10 bg-[#0b0218]/85 backdrop-blur-xl px-3 sm:px-4 pt-3 pb-3">
               <button
                 onClick={handleDownload}
                 disabled={busy || !blob}
                 data-testid="share-download-btn"
-                className="inline-flex items-center justify-center gap-2 rounded-full py-3 text-sm font-medium text-white bg-gradient-to-r from-purple-500 via-fuchsia-500 to-pink-500 hover:opacity-95 transition shadow-lg shadow-purple-500/30 disabled:opacity-50"
+                className="w-full inline-flex items-center justify-center gap-2 rounded-full py-3 text-sm font-medium text-white bg-gradient-to-r from-purple-500 via-fuchsia-500 to-pink-500 hover:opacity-95 transition shadow-lg shadow-purple-500/30 disabled:opacity-50"
               >
                 {busy ? (
                   <Loader2 className="w-4 h-4 animate-spin" />
@@ -356,157 +377,85 @@ export const ShareCardModal = ({ open, onClose, post }) => {
                 Download PNG
               </button>
 
-              <div
-                className="relative"
-                onMouseEnter={() => setShareMenuOpen(true)}
-                onMouseLeave={() => setShareMenuOpen(false)}
-              >
-                <button
-                  type="button"
-                  onClick={() => setShareMenuOpen((v) => !v)}
-                  disabled={busy || !blob}
-                  data-testid="share-native-btn"
-                  aria-expanded={shareMenuOpen}
-                  aria-haspopup="menu"
-                  className={`relative w-full inline-flex items-center justify-center gap-2 rounded-full py-3 text-sm font-medium text-white border transition disabled:opacity-50 ${
-                    shareMenuOpen
-                      ? "bg-white/[0.12] border-purple-400/50 shadow-lg shadow-purple-500/20"
-                      : "bg-white/[0.06] border-white/10 hover:bg-white/[0.1] hover:border-white/25"
-                  }`}
+              <div className="mt-3 flex items-center gap-2">
+                <span className="text-[10px] font-mono uppercase tracking-[0.25em] text-zinc-500 shrink-0 pl-1">
+                  Share to
+                </span>
+                <div
+                  className="flex-1 min-w-0 flex items-center gap-2 overflow-x-auto scrollbar-hide -mx-1 px-1 snap-x snap-mandatory"
+                  data-testid="share-socials-row"
+                  role="toolbar"
+                  aria-label="Share to social networks"
                 >
-                  <Share2 className="w-4 h-4" />
-                  Share to…
-                  <motion.span
-                    animate={{ rotate: shareMenuOpen ? 180 : 0 }}
-                    transition={{ duration: 0.2 }}
-                    className="inline-block ml-0.5"
-                  >
-                    <ChevronDown className="w-3.5 h-3.5 opacity-70" />
-                  </motion.span>
-                </button>
-
-                <AnimatePresence>
-                  {shareMenuOpen && (
-                    <motion.div
-                      initial={{ opacity: 0, y: 8, scale: 0.96 }}
-                      animate={{ opacity: 1, y: 0, scale: 1 }}
-                      exit={{ opacity: 0, y: 6, scale: 0.97 }}
-                      transition={{ duration: 0.18, ease: "easeOut" }}
-                      role="menu"
-                      data-testid="share-menu-popover"
-                      className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 z-[20] w-[220px] origin-bottom rounded-2xl border border-white/10 bg-[#0b0218]/95 backdrop-blur-xl shadow-2xl shadow-black/60 p-1.5"
+                  {[
+                    {
+                      key: "x",
+                      label: "X",
+                      icon: <XMark className="w-5 h-5" />,
+                      onClick: handleX,
+                      testid: "share-x-btn",
+                      bg: "bg-black",
+                      ring: "ring-white/25",
+                    },
+                    {
+                      key: "instagram",
+                      label: "Instagram",
+                      icon: <Instagram className="w-5 h-5" />,
+                      onClick: handleInstagram,
+                      testid: "share-instagram-btn",
+                      bg:
+                        "bg-gradient-to-br from-[#feda77] via-[#d62976] to-[#4f5bd5]",
+                      ring: "ring-pink-400/40",
+                    },
+                    {
+                      key: "tiktok",
+                      label: "TikTok",
+                      icon: <TikTokMark className="w-5 h-5" />,
+                      onClick: handleTikTok,
+                      testid: "share-tiktok-btn",
+                      bg: "bg-black",
+                      ring: "ring-cyan-300/40",
+                    },
+                    {
+                      key: "facebook",
+                      label: "Facebook",
+                      icon: <Facebook className="w-5 h-5" />,
+                      onClick: handleFacebook,
+                      testid: "share-facebook-btn",
+                      bg: "bg-[#1877f2]",
+                      ring: "ring-[#1877f2]/50",
+                    },
+                    {
+                      key: "more",
+                      label: "More",
+                      icon: <Share2 className="w-5 h-5" />,
+                      onClick: handleNativeShare,
+                      testid: "share-native-btn",
+                      bg: "bg-white/[0.08]",
+                      ring: "ring-white/20",
+                    },
+                  ].map((opt) => (
+                    <button
+                      key={opt.key}
+                      type="button"
+                      onClick={opt.onClick}
+                      data-testid={opt.testid}
+                      className="snap-start shrink-0 flex flex-col items-center justify-center gap-1.5 px-1.5 py-1 rounded-2xl hover:bg-white/[0.04] transition group"
+                      aria-label={`Share to ${opt.label}`}
                     >
-                      {/* arrow */}
                       <span
-                        aria-hidden
-                        className="absolute left-1/2 -translate-x-1/2 -bottom-1 w-2 h-2 rotate-45 bg-[#0b0218]/95 border-r border-b border-white/10"
-                      />
-                      {[
-                        {
-                          key: "x",
-                          label: "Post on X",
-                          icon: <XMark className="w-4 h-4" />,
-                          onClick: handleX,
-                          testid: "share-x-btn",
-                          iconBg: "bg-black",
-                          iconBorder: "border-white/20",
-                          accent: "hover:bg-white/[0.08]",
-                        },
-                        {
-                          key: "instagram",
-                          label: "Share to Instagram",
-                          icon: <Instagram className="w-4 h-4" />,
-                          onClick: handleInstagram,
-                          testid: "share-instagram-btn",
-                          iconBg:
-                            "bg-gradient-to-br from-[#feda77] via-[#d62976] to-[#4f5bd5]",
-                          iconBorder: "border-white/10",
-                          accent: "hover:bg-pink-500/10",
-                        },
-                        {
-                          key: "tiktok",
-                          label: "Share to TikTok",
-                          icon: <TikTokMark className="w-4 h-4" />,
-                          onClick: handleTikTok,
-                          testid: "share-tiktok-btn",
-                          iconBg: "bg-black",
-                          iconBorder: "border-cyan-300/30",
-                          accent: "hover:bg-cyan-500/10",
-                        },
-                        {
-                          key: "facebook",
-                          label: "Share to Facebook",
-                          icon: <Facebook className="w-4 h-4" />,
-                          onClick: handleFacebook,
-                          testid: "share-facebook-btn",
-                          iconBg: "bg-[#1877f2]",
-                          iconBorder: "border-[#1877f2]/40",
-                          accent: "hover:bg-[#1877f2]/15",
-                        },
-                      ].map((opt, i) => (
-                        <motion.button
-                          key={opt.key}
-                          initial={{ opacity: 0, x: -6 }}
-                          animate={{ opacity: 1, x: 0 }}
-                          transition={{ delay: 0.04 * i, duration: 0.15 }}
-                          onClick={() => {
-                            setShareMenuOpen(false);
-                            opt.onClick();
-                          }}
-                          data-testid={opt.testid}
-                          role="menuitem"
-                          className={`w-full flex items-center gap-3 px-2.5 py-2 rounded-xl text-left text-[13px] text-zinc-100 transition ${opt.accent}`}
-                        >
-                          <span
-                            className={`flex items-center justify-center w-8 h-8 rounded-full border text-white ${opt.iconBg} ${opt.iconBorder}`}
-                          >
-                            {opt.icon}
-                          </span>
-                          <span className="font-medium tracking-tight">
-                            {opt.label}
-                          </span>
-                        </motion.button>
-                      ))}
-                      <div className="h-px bg-white/5 my-1 mx-2" />
-                      <button
-                        onClick={() => {
-                          setShareMenuOpen(false);
-                          handleNativeShare();
-                        }}
-                        role="menuitem"
-                        data-testid="share-native-fallback"
-                        className="w-full flex items-center gap-3 px-2.5 py-2 rounded-xl text-left text-[12px] text-zinc-400 hover:text-white hover:bg-white/[0.06] transition"
+                        className={`flex items-center justify-center w-11 h-11 sm:w-12 sm:h-12 rounded-full text-white ring-1 ${opt.bg} ${opt.ring} group-hover:scale-105 group-active:scale-95 transition-transform shadow-md shadow-black/40`}
                       >
-                        <span className="flex items-center justify-center w-8 h-8 rounded-full border border-white/10 bg-white/[0.04]">
-                          <Share2 className="w-4 h-4" />
-                        </span>
-                        <span>More… (system share)</span>
-                      </button>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
+                        {opt.icon}
+                      </span>
+                      <span className="text-[10px] font-mono uppercase tracking-wider text-zinc-300 group-hover:text-white transition">
+                        {opt.label}
+                      </span>
+                    </button>
+                  ))}
+                </div>
               </div>
             </div>
-
-            <button
-              onClick={handleCopyLink}
-              data-testid="share-copy-link"
-              className="mt-3 w-full inline-flex items-center justify-between gap-2 rounded-2xl px-4 py-3 text-xs font-mono text-zinc-300 bg-white/[0.04] border border-white/10 hover:text-white hover:border-purple-400/40 hover:bg-purple-500/10 transition"
-            >
-              <span className="flex items-center gap-2">
-                <LinkIcon className="w-3.5 h-3.5" />
-                <span className="uppercase tracking-wider">Copy post link</span>
-              </span>
-              <span className="truncate max-w-[60%] text-zinc-500 text-[10px]">
-                {shareUrl.replace(/^https?:\/\//, "")}
-              </span>
-            </button>
-
-            <p className="mt-3 text-[11px] leading-relaxed text-zinc-500">
-              Instagram & TikTok don't allow auto-uploads from the web —
-              we'll save the PNG and copy the post link so you can paste it
-              into your Story or video caption.
-            </p>
           </motion.div>
         </motion.div>
       ) : null}

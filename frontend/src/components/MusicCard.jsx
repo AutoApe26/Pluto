@@ -331,16 +331,18 @@ export const MusicCard = ({ track, index = 0 }) => {
           </button>
         </div>
         <div className="flex items-center gap-1">
-          <a
-            href={track.link_url}
-            target="_blank"
-            rel="noreferrer"
-            className="inline-flex items-center gap-1 text-xs text-zinc-400 hover:text-white px-2 py-1 rounded-full"
-            data-testid={`open-${track.id}`}
-            title="Open original"
-          >
-            <ExternalLink className="w-3.5 h-3.5" />
-          </a>
+          {track.provider !== "youtube" && track.link_url && (
+            <a
+              href={track.link_url}
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex items-center gap-1 text-xs text-zinc-400 hover:text-white px-2 py-1 rounded-full"
+              data-testid={`open-${track.id}`}
+              title="Open original"
+            >
+              <ExternalLink className="w-3.5 h-3.5" />
+            </a>
+          )}
           <ReportButton targetType="music" targetId={track.id} />
         </div>
       </div>

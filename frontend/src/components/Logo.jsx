@@ -1,37 +1,75 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
 
 // Real PNG asset extracted from the brand reference.
 const ORB_SRC = "/assets/pluto-orb.png";
 
-// Small header / inline logo — gentle breathing glow
-export const Logo = ({ size = 32 }) => (
-  <div
-    className="relative inline-flex items-center justify-center"
-    style={{ width: size, height: size }}
-    data-testid="pluto-logo"
-  >
-    <img
-      src={ORB_SRC}
-      alt="Pluto"
-      draggable={false}
-      className="pluto-logo-breath"
-      style={{
-        width: "100%",
-        height: "100%",
-        objectFit: "contain",
-        userSelect: "none",
-      }}
-    />
-  </div>
-);
+/**
+ * useScrollShine — listens to window scroll and returns `true` while the
+ * user is actively scrolling. We use this to trigger a brighter glow + a
+ * one-shot shimmer sweep on the Pluto logo.
+ */
+const useScrollShine = () => {
+  const [active, setActive] = useState(false);
+  useEffect(() => {
+    let timer = null;
+    let lastY = typeof window !== "undefined" ? window.scrollY : 0;
+    const onScroll = () => {
+      const y = window.scrollY;
+      if (Math.abs(y - lastY) > 1) {
+        lastY = y;
+        setActive(true);
+        if (timer) clearTimeout(timer);
+        timer = setTimeout(() => setActive(false), 650);
+      }
+    };
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => {
+      window.removeEventListener("scroll", onScroll);
+      if (timer) clearTimeout(timer);
+    };
+  }, []);
+  return active;
+};
+
+// Small header / inline logo — gentle breathing glow + scroll-triggered shine
+export const Logo = ({ size = 32 }) => {
+  const shining = useScrollShine();
+  return (
+    <div
+      className={`pluto-logo-wrap relative inline-flex items-center justify-center ${
+        shining ? "pluto-logo-shining" : ""
+      }`}
+      style={{ width: size, height: size }}
+      data-testid="pluto-logo"
+    >
+      <img
+        src={ORB_SRC}
+        alt="Pluto"
+        draggable={false}
+        className="pluto-logo-breath relative z-[1]"
+        style={{
+          width: "100%",
+          height: "100%",
+          objectFit: "contain",
+          userSelect: "none",
+        }}
+      />
+      {/* Shimmer sweep — only animates when .pluto-logo-shining is active */}
+      <span className="pluto-logo-shimmer" aria-hidden />
+    </div>
+  );
+};
 
 // Big hero sphere — uses the brand PNG with a breathing dim/bright glow.
 export const PlutoSphere = ({ size = 180 }) => {
+  const shining = useScrollShine();
   const w = size;
   const h = size * 1.45; // extra room for the halo glow beneath
   return (
     <div
-      className="relative inline-block"
+      className={`pluto-sphere-wrap relative inline-block ${
+        shining ? "pluto-logo-shining" : ""
+      }`}
       style={{ width: w, height: h }}
       data-testid="pluto-sphere"
     >
@@ -77,6 +115,18 @@ export const PlutoSphere = ({ size = 180 }) => {
           transform: "translateX(-50%)",
           objectFit: "contain",
           userSelect: "none",
+        }}
+      />
+      {/* Shimmer sweep over the orb — fires while scrolling */}
+      <span
+        className="pluto-sphere-shimmer"
+        aria-hidden
+        style={{
+          left: "50%",
+          top: 0,
+          width: size,
+          height: size,
+          transform: "translateX(-50%)",
         }}
       />
     </div>

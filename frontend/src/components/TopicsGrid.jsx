@@ -15,15 +15,17 @@ import {
 
 // 8 topic cards mirroring the lovable.app design — tinted backgrounds,
 // big mono name, "ENTER →" CTA at bottom-left.
+// Order matters: Trending priority is Crypto → Music → Mental Health →
+// Confession, then the rest in their natural order.
 const TOPICS = [
   { slug: "crypto", name: "Crypto", icon: Bitcoin, color: "#F7931A" },
+  { slug: "music", name: "Music", icon: MusicIcon, color: "#5DD3D8" },
+  { slug: "mental-health", name: "Mental Health", icon: Moon, color: "#7BD7E0" },
+  { slug: "confession", name: "Confession", icon: CircleDot, color: "#FF5470" },
   { slug: "sports", name: "Sports", icon: Zap, color: "#FF6A2D" },
   { slug: "memes", name: "Memes", icon: Globe2, color: "#FF7AB6" },
-  { slug: "mental-health", name: "Mental Health", icon: Moon, color: "#7BD7E0" },
   { slug: "rant", name: "Rant", icon: Sparkle, color: "#9B7BFF" },
   { slug: "stories", name: "Stories", icon: Sparkles, color: "#B89BFF" },
-  { slug: "confession", name: "Confession", icon: CircleDot, color: "#FF5470" },
-  { slug: "music", name: "Music", icon: MusicIcon, color: "#5DD3D8" },
 ];
 
 export const TopicsGrid = () => {

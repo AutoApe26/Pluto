@@ -128,7 +128,23 @@ export const Landing = ({ onCreate }) => {
     api.featuredMusic().then(setMusic).catch(() => {});
   }, []);
 
-  const trendList = (trending.length ? trending : FALLBACK_POSTS).slice(0, 8);
+  const trendList = (() => {
+    const list = (trending.length ? trending : FALLBACK_POSTS).slice();
+    // Trending priority — Crypto → Music → Mental Health → Confession,
+    // everything else after. Stable sort keeps original chronology within
+    // each topic bucket.
+    const priority = {
+      crypto: 0,
+      music: 1,
+      "mental-health": 2,
+      confession: 3,
+    };
+    return list
+      .map((p, i) => ({ p, i, rank: priority[p.topic] ?? 99 }))
+      .sort((a, b) => a.rank - b.rank || a.i - b.i)
+      .map(({ p }) => p)
+      .slice(0, 8);
+  })();
 
   return (
     <div className="relative" data-testid="landing-page">

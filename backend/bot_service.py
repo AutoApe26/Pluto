@@ -56,6 +56,7 @@ TOPIC_SOURCES = {
     "rant": ["rant", "TrueOffMyChest", "offmychest"],
     "stories": ["humansbeingbros", "MadeMeSmile", "UpliftingNews"],
     "confession": ["confession", "confessions", "TrueOffMyChest"],
+    "music": ["Music", "popheads", "hiphopheads", "indieheads", "letstalkmusic"],
 }
 MUSIC_SOURCES = ["listentothis", "Music", "spotify", "indieheads"]
 
@@ -555,8 +556,146 @@ async def _post_music(db) -> bool:
     return False
 
 
+# ---------------------------------------------------------------------------
+# Music chatter — curated templates that post trending music news, lyric
+# snippets, artist updates and viral discussion prompts to the #music topic.
+# Pulls live trending data from Billboard so the talk feels of-the-moment,
+# and rotates through chatter shapes so the feed never feels repetitive.
+# ---------------------------------------------------------------------------
+NEWS_TEMPLATES = [
+    "{artist} just hit #1 with “{title}” and the streams are insane",
+    "“{title}” by {artist} is climbing the charts faster than anyone expected",
+    "people are saying {artist}’s new drop “{title}” is their best work yet",
+    "the “{title}” era from {artist} is officially in full swing",
+    "{artist} broke another streaming record with “{title}” over the weekend",
+    "is “{title}” by {artist} the song of the year already? feels like it",
+    "{artist} keeps charting — “{title}” is on every playlist rn",
+    "“{title}” is the kind of {artist} drop that lives in your head for weeks",
+]
+ARTIST_UPDATES = [
+    "{artist} hinted at new music coming and the fandom is unwell",
+    "{artist} dropped a snippet on socials and i cannot stop replaying it",
+    "{artist} is going on tour and tickets are gonna disappear in minutes",
+    "rumor has it {artist} has a surprise album drop this month",
+    "{artist} teased a collab and the internet has guesses",
+    "{artist} just spoke about their songwriting process and it’s beautiful",
+    "the documentary about {artist} that nobody asked for but everyone needed",
+    "{artist} hit a billion streams milestone — wild numbers",
+]
+LYRIC_SNIPPETS = [
+    "“i was sleepin’ in a stranger’s bed and tryna fall in love”",
+    "“heart on the floor, somebody’s gonna sweep it up”",
+    "“if i could write a song and make you sing along”",
+    "“i don’t miss the old me, i miss the new me i thought i’d be”",
+    "“everything is romantic to me”",
+    "“we are not the same, i am a martian”",
+    "“pretty boys, dirty hands, neon nights”",
+    "“you said forever, baby i believed it”",
+    "“tell me how to feel about you now”",
+    "“i loved you in secret, that was the worst part”",
+    "“we’ll be alright, we always are”",
+    "“dancing alone to a love song that was meant for two”",
+]
+VIRAL_PROMPTS = [
+    "what song is haunting you this week? mine is on loop",
+    "drop a song that instantly fixes your mood. no skips",
+    "underrated track of {year} that deserves more love?",
+    "songs that aged like fine wine — go",
+    "what’s your unpopular music opinion that will start a fight",
+    "best song to scream-sing in the car at 1am?",
+    "which artist do you actually trust to drop a perfect album?",
+    "lyric that hit you so hard you had to pause the song?",
+    "song that reminds you of a specific person and you wish it didn’t",
+    "best opening 30 seconds of any song ever?",
+    "song you used to hate but now you secretly love?",
+    "which album do you put on when you need to feel like the main character?",
+]
+
+
+def _format_chatter(template: str, artist: str, title: str) -> str:
+    return template.format(artist=artist, title=title, year=datetime.now(timezone.utc).year)
+
+
+async def _insert_music_chatter_post(db, content: str, key: str, kind: str) -> bool:
+    if not content or len(content.strip()) < 5:
+        return False
+    if _contains_plaintext_url(content):
+        return False
+    if await db.bot_posted.find_one({"key": key}):
+        return False
+    now = _now_utc()
+    hugs, fugs = _seed_reactions()
+    post = {
+        "id": str(uuid.uuid4()),
+        "content": content[:1000],
+        "topic": "music",
+        "image": None,
+        "sudo_name": _pick_name(),
+        "device_id": "bot_music_chatter",
+        "hugs": hugs,
+        "fugs": fugs,
+        "created_at": _iso(now),
+        "expires_at": _iso(now + timedelta(hours=24)),
+        "report_count": 0,
+        "hidden": False,
+        "is_bot": True,
+        "source": f"music-chatter:{kind}",
+        "lang": _bot_detect_lang(content),
+    }
+    await db.posts.insert_one(post)
+    await db.bot_posted.insert_one({
+        "key": key, "kind": kind, "topic": "music", "ts": _iso(now),
+    })
+    logger.info("music chatter (%s) -> %s", kind, content[:60])
+    return True
+
+
+async def _post_music_chatter(db) -> bool:
+    """Drop a single curated music chatter post to the #music topic per cycle.
+
+    Rotates between four shapes — trending news, artist updates, lyric
+    snippets, and viral discussion prompts. Uses live Billboard Hot 100
+    data when forming news/artist posts so chatter stays relevant.
+    """
+    shape = random.choice(["news", "update", "lyric", "viral", "news", "viral"])
+
+    if shape in ("news", "update"):
+        tracks = await fetch_billboard_hot100(limit=40)
+        random.shuffle(tracks)
+        for title, artist in tracks:
+            if shape == "news":
+                template = random.choice(NEWS_TEMPLATES)
+                content = _format_chatter(template, artist, title)
+                key = _hash_key("music_chatter", "news", title, artist, template[:20])
+            else:
+                template = random.choice(ARTIST_UPDATES)
+                content = _format_chatter(template, artist, title)
+                key = _hash_key("music_chatter", "update", artist, template[:20])
+            if await _insert_music_chatter_post(db, content, key, f"music_{shape}"):
+                return True
+        return False
+
+    if shape == "lyric":
+        random.shuffle(LYRIC_SNIPPETS)
+        for snippet in LYRIC_SNIPPETS:
+            content = f"{snippet} — this lyric is rent-free in my head"
+            key = _hash_key("music_chatter", "lyric", snippet)
+            if await _insert_music_chatter_post(db, content, key, "music_lyric"):
+                return True
+        return False
+
+    # viral
+    random.shuffle(VIRAL_PROMPTS)
+    for prompt in VIRAL_PROMPTS:
+        content = _format_chatter(prompt, "", "")
+        key = _hash_key("music_chatter", "viral", prompt)
+        if await _insert_music_chatter_post(db, content, key, "music_viral"):
+            return True
+    return False
+
+
 async def run_once(db) -> dict:
-    stats = {"posted": [], "skipped": [], "music": False}
+    stats = {"posted": [], "skipped": [], "music": False, "chatter": False}
     topics = list(TOPIC_SOURCES.keys())
     random.shuffle(topics)
     for topic in topics:
@@ -571,6 +710,10 @@ async def run_once(db) -> dict:
         stats["music"] = await _post_music(db)
     except Exception as e:
         logger.warning("music bot failed: %s", e)
+    try:
+        stats["chatter"] = await _post_music_chatter(db)
+    except Exception as e:
+        logger.warning("music chatter failed: %s", e)
     return stats
 
 
@@ -591,8 +734,8 @@ async def bot_loop(db):
         try:
             stats = await run_once(db)
             logger.info(
-                "bot cycle done · posted=%s skipped=%s music=%s",
-                stats["posted"], stats["skipped"], stats["music"],
+                "bot cycle done · posted=%s skipped=%s music=%s chatter=%s",
+                stats["posted"], stats["skipped"], stats["music"], stats.get("chatter"),
             )
         except asyncio.CancelledError:
             raise

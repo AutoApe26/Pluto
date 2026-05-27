@@ -236,6 +236,96 @@ body {
     animation: plutoLogoBreath 4.5s ease-in-out infinite;
 }
 
+/* ===== Pluto logo scroll-shine =================================== */
+/* Adds a brighter glow + a diagonal shimmer sweep that fires while
+   the user is actively scrolling. */
+.pluto-logo-wrap {
+    overflow: hidden;
+    border-radius: 50%;
+    transition: filter 0.4s ease;
+}
+.pluto-sphere-wrap {
+    transition: filter 0.4s ease;
+}
+
+.pluto-logo-wrap.pluto-logo-shining .pluto-logo-breath {
+    animation-duration: 1.6s;
+    filter: drop-shadow(0 0 18px rgba(120, 220, 255, 0.95))
+        drop-shadow(0 0 26px rgba(176, 38, 255, 0.7));
+}
+
+.pluto-sphere-wrap.pluto-logo-shining .pluto-orb-breath {
+    animation-duration: 2s;
+    filter: drop-shadow(0 14px 60px rgba(60, 180, 255, 1))
+        drop-shadow(0 0 70px rgba(176, 38, 255, 1))
+        drop-shadow(0 0 100px rgba(0, 240, 255, 0.7));
+}
+
+/* Diagonal shimmer ribbon — clipped to a circle so it never leaks
+   into the halo glow area of the hero sphere. */
+.pluto-logo-shimmer,
+.pluto-sphere-shimmer {
+    position: absolute;
+    pointer-events: none;
+    border-radius: 50%;
+    overflow: hidden;
+    background: linear-gradient(
+        115deg,
+        transparent 30%,
+        rgba(255, 255, 255, 0) 45%,
+        rgba(255, 255, 255, 0.55) 50%,
+        rgba(255, 255, 255, 0) 55%,
+        transparent 70%
+    );
+    background-size: 300% 100%;
+    background-position: -150% 0;
+    mix-blend-mode: screen;
+    opacity: 0;
+    z-index: 2;
+}
+
+.pluto-logo-shimmer {
+    inset: 0;
+}
+
+.pluto-logo-shining .pluto-logo-shimmer,
+.pluto-logo-shining .pluto-sphere-shimmer {
+    animation: plutoShimmer 1.1s ease-out 1;
+    opacity: 1;
+}
+
+@keyframes plutoShimmer {
+    0% {
+        background-position: -150% 0;
+        opacity: 0;
+    }
+    20% {
+        opacity: 1;
+    }
+    100% {
+        background-position: 150% 0;
+        opacity: 0;
+    }
+}
+
+/* Respect reduced motion — disable shimmer for users who opt out */
+@media (prefers-reduced-motion: reduce) {
+    .pluto-logo-shimmer,
+    .pluto-sphere-shimmer {
+        display: none;
+    }
+}
+
+/* ===== Hide scrollbar utility (extend) ============================ */
+.scrollbar-hide::-webkit-scrollbar {
+    display: none;
+}
+.scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+}
+
+
 /* Audio waveform */
 .wave-bar {
     width: 3px;
