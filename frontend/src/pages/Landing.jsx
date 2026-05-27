@@ -131,10 +131,13 @@ export const Landing = ({ onCreate }) => {
   }, []);
 
   // Trending priority — Crypto → Music → Mental Health → Confession,
-  // everything else after. We start from the API trending list, then
-  // top-up any missing topic with the curated FALLBACK_POSTS so all 8
-  // topics stay visible at all times. Stable secondary sort by original
-  // index preserves chronology within each topic bucket.
+  // everything else after. We start from the API trending list, but
+  // collapse duplicates by topic (keep first occurrence) so a single
+  // hot topic (e.g. music-chatter flooding) doesn't push other topics
+  // out of the top-8 window. Then top-up any topic still missing with
+  // a curated FALLBACK_POSTS so all 8 topics stay visible at all times.
+  // Stable secondary sort by original index preserves chronology within
+  // each topic bucket.
   const trendList = (() => {
     const priority = {
       crypto: 0,
@@ -146,8 +149,15 @@ export const Landing = ({ onCreate }) => {
       rant: 6,
       stories: 7,
     };
-    const source = (trending.length ? trending : []).slice();
-    const seenTopics = new Set(source.map((p) => p.topic));
+    const sourceRaw = (trending.length ? trending : []).slice();
+    const seenTopics = new Set();
+    const source = [];
+    for (const p of sourceRaw) {
+      if (!seenTopics.has(p.topic)) {
+        seenTopics.add(p.topic);
+        source.push(p);
+      }
+    }
     for (const fb of FALLBACK_POSTS) {
       if (!seenTopics.has(fb.topic)) {
         source.push(fb);
