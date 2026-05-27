@@ -67,6 +67,13 @@ Crypto, Sports, Memes, Mental Health, **Rant**, Stories, Confession, Music
 - [x] ShareCardModal accepts either `post` OR `track` prop and adapts copy/filename/share URL accordingly.
 - [x] Tested via testing_agent_v3_fork → **frontend 100% (final retest 4/4)**
 
+### V4 (Persistent music + strict moderation) — 2026-02-27
+- [x] **Strict moderation**: backend `_HARASSMENT` set expanded with ~50 violent-threat phrases (punch / kick / break bones / shoot / stab / bury you / burn alive / etc.) + friendly user-facing error format ("Your post was blocked for hate speech, threats or abusive language. Pluto doesn't allow…"). All categories (hate, terror, self-harm, doxxing, piracy, sexual, scams) now map through `_FRIENDLY_LABELS`.
+- [x] **Frontend pre-check**: new `lib/safety.js → screenContent()` mirrors high-signal threat phrases for instant inline warning. CreatePostModal renders red `unsafe-warning` banner + locks submit button to "Can't post — content blocked" the moment matching phrases are typed.
+- [x] **Persistent music player**: new `MusicPlayerContext` + `MiniPlayer` component mounted once in App.js below BottomNav. Single always-mounted iframe (collapse/expand animates wrapper height + visibility, never unmounts iframe) so audio survives both collapse AND route navigation.
+- [x] MusicCard.Play now dispatches `playTrack(track)` to context (removed inline iframe). Currently-playing card shows "Stop playback" (pink/Pause) state.
+- [x] **Tested**: 37/37 backend pytests pass (26 regression + 11 new `test_moderation_v6.py`). Frontend 100% — inline-warning gating, safe-post submit, Spotify/YouTube playback, MiniPlayer persistence across `/`, `/music`, `/topics`, expand/collapse without audio interruption.
+
 ## Backlog (P1)
 - TTL index on `posts.expires_at` and `music_posts.expires_at` for native expiry
 - Infinite scroll pagination

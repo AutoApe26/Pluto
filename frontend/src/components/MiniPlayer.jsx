@@ -71,55 +71,48 @@ export const MiniPlayer = () => {
         data-testid="mini-player"
       >
         <div className="glass-strong rounded-3xl border border-white/10 shadow-2xl shadow-purple-500/20 overflow-hidden">
-          {/* Embed (expanded view) */}
-          <AnimatePresence initial={false}>
-            {expanded && embedUrl && (
-              <motion.div
-                key="embed"
-                initial={{ height: 0, opacity: 0 }}
-                animate={{ height: "auto", opacity: 1 }}
-                exit={{ height: 0, opacity: 0 }}
-                transition={{ duration: 0.25 }}
-                className="overflow-hidden"
-                data-testid="mini-player-embed"
-              >
-                <iframe
-                  title={title}
-                  src={embedUrl}
-                  loading="lazy"
-                  allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
-                  className={`w-full ${
-                    track.provider === "youtube" ? "aspect-video" : "h-[152px]"
-                  }`}
-                />
-              </motion.div>
-            )}
-            {/* Even when collapsed we keep the iframe mounted but hidden so
-                audio keeps playing. Done by always rendering this off-screen
-                stub when not expanded. */}
-            {!expanded && embedUrl && (
-              <div
-                key="embed-hidden"
-                aria-hidden
-                style={{
-                  position: "absolute",
-                  left: -99999,
-                  top: 0,
-                  width: track.provider === "youtube" ? 320 : 300,
-                  height: track.provider === "youtube" ? 180 : 152,
-                  pointerEvents: "none",
-                }}
-              >
-                <iframe
-                  title={`${title} (background)`}
-                  src={embedUrl}
-                  loading="lazy"
-                  allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
-                  style={{ width: "100%", height: "100%", border: 0 }}
-                />
-              </div>
-            )}
-          </AnimatePresence>
+          {/*
+            Single, always-mounted iframe. We never unmount it on
+            collapse — that would restart audio. Instead we animate the
+            wrapper's height and toggle visibility/pointer-events with
+            CSS. The iframe element identity stays stable across
+            collapse, expand, AND route navigation.
+          */}
+          {embedUrl && (
+            <motion.div
+              key="embed"
+              initial={false}
+              animate={{
+                height: expanded
+                  ? track.provider === "youtube"
+                    ? "auto"
+                    : 152
+                  : 0,
+                opacity: expanded ? 1 : 0,
+              }}
+              transition={{ duration: 0.25 }}
+              className="overflow-hidden"
+              data-testid="mini-player-embed"
+              style={{
+                // When collapsed, the height animates to 0 — but we keep
+                // the iframe mounted; visibility:hidden suspends paint
+                // without killing the media element.
+                visibility: expanded ? "visible" : "hidden",
+                pointerEvents: expanded ? "auto" : "none",
+              }}
+            >
+              <iframe
+                title={title}
+                src={embedUrl}
+                loading="lazy"
+                allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
+                className={`w-full ${
+                  track.provider === "youtube" ? "aspect-video" : "h-[152px]"
+                }`}
+                data-testid="mini-player-iframe"
+              />
+            </motion.div>
+          )}
 
           {/* Pill bar */}
           <div className="flex items-center gap-3 px-3 py-2.5">
