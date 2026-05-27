@@ -59,6 +59,14 @@ Crypto, Sports, Memes, Mental Health, **Rant**, Stories, Confession, Music
 - [x] Added "music" subreddits to TOPIC_SOURCES so #music also pulls real Reddit content alongside chatter.
 - [x] Tested via testing_agent_v3_fork → **100% backend (26/26) / 100% frontend pass**
 
+### V3.1 (Trending all-topics + Explicit + Music Share card) — 2026-02-27
+- [x] **Trending all topics visible**: Landing trendList now dedupes API posts by topic (keep first), then tops-up with FALLBACK_POSTS so all 8 topics are guaranteed to render. Priority sort: Crypto → Music → Mental Health → Confession → Sports → Memes → Rant → Stories.
+- [x] **Auto Explicit tag**: New `lib/explicit.js` (curated word-boundary regex, no LLM cost). `isExplicitPost` flags confession topic unconditionally + auto-detects profanity/sexual/drug/self-harm terms in any post. `isExplicitTrack` does the same for music captions/titles.
+- [x] **ExplicitBadge** (red "18+ Explicit") rendered in PostCard meta row, Landing trending rows (`trending-explicit-{id}`), and MusicCard (`music-explicit-{trackId}`).
+- [x] **Music Share card**: MusicCard now has a Share button (`music-share-btn-{trackId}`) that opens a Pluto-style ShareCardModal. Modal title becomes "Share this track" with a music-specific canvas: cover art (420×420), large song title, artist line, provider pill (Spotify/YouTube), optional caption, hugs/fugs.
+- [x] ShareCardModal accepts either `post` OR `track` prop and adapts copy/filename/share URL accordingly.
+- [x] Tested via testing_agent_v3_fork → **frontend 100% (final retest 4/4)**
+
 ## Backlog (P1)
 - TTL index on `posts.expires_at` and `music_posts.expires_at` for native expiry
 - Infinite scroll pagination
