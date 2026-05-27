@@ -373,6 +373,240 @@ def detect_link(text: str) -> bool:
     return bool(_URL_RE.search(text))
 
 
+# ---------------------------------------------------------------------------
+# Context-aware violent-intent regex detector.
+#
+# Catches threats that aren't in the curated phrase list, like:
+#   "I will bomb the office"  /  "I'm gonna shoot her tomorrow"
+#   "we'll murder them all"  /  "imma blow up that place"
+#   "I have a bomb"  /  "I've got an explosive"  /  "bringing a gun in"
+#   "should kill them"  /  "need to bomb that"  /  "let's shoot them up"
+#
+# Patterns are tight — they require BOTH a personal intent/possession
+# stem AND a violent action+verb to fire — so safe lookalikes
+# ("I bombed my exam", "that show was the bomb", "explosive performance",
+# "gun show this weekend", "shoot for the stars") are NOT blocked.
+# ---------------------------------------------------------------------------
+
+# Subject pronouns/groups that can carry an intent
+_SUBJ = r"(?:i|we|they|y'?all|you|he|she|imma|i'?m|im)"
+# Combined subject+intent contractions ("i'll", "we'll", "i've", "im gonna")
+_SUBJ_INTENT_COMBO = (
+    r"(?:i'?ll|we'?ll|they'?ll|you'?ll|he'?ll|she'?ll|"
+    r"i'?ve|we'?ve|they'?ve|you'?ve|ive|weve|theyve|youve|"
+    r"imma|ima|i'?m\s+gonna|im\s+gonna|i'?m\s+going\s+to|im\s+going\s+to|"
+    r"i'?m\s+finna|im\s+finna|"
+    r"i'?m\s+about\s+to|im\s+about\s+to)"
+)
+# Future / intent modal phrases ("will", "'ll", "am going to", "gonna",
+# "imma", "going to", "want to", "wanna", "plan to", "should", "need to",
+# "have to", "must", "let's", "going")
+_INTENT = (
+    r"(?:'?ll|will|wanna|want\s+to|gonna|going\s+to|"
+    r"am\s+going\s+to|am\s+gonna|plan(?:ning)?\s+to|"
+    r"should|need\s+to|have\s+to|gotta|gotsta|must|"
+    r"about\s+to|finna|fixin\s+to|fixing\s+to|tryna|trying\s+to)"
+)
+# Violent verbs — must be at the verb position (not a noun like "gun show").
+# Includes past-tense / -ing / plural inflections so "be killed", "be murdered",
+# "got shot up", "is being bombed" also match.
+_VIOLENT_VERBS = (
+    r"(?:bomb(?:ed|ing|s)?|nuke[ds]?|blow\s+up|blown\s+up|blow\s+it\s+up|"
+    r"blow\s+them\s+up|"
+    r"detonate[ds]?|detonating|explode[ds]?|exploding|set\s+off|"
+    r"set\s+on\s+fire|burn\s+down|burning\s+down|burnt\s+down|"
+    r"burn\s+alive|burned\s+alive|torch(?:ed|ing|es)?|firebomb(?:ed|ing)?|"
+    r"shoot|shot|shooting|shoots|shoot\s+up|shot\s+up|"
+    r"gun\s+down|gunned\s+down|gunning\s+down|mow\s+down|mowed\s+down|spray|"
+    r"open\s+fire(?:\s+on|\s+at)?|"
+    r"stab(?:bed|bing|s)?|slash(?:ed|ing|es)?|slice(?:d|s)?|slicing|"
+    r"cut\s+up|cut\s+them\s+up|knife(?:d|s)?|knifing|gut(?:ted|ting|s)?|"
+    r"kill(?:ed|ing|s)?|murder(?:ed|ing|s)?|"
+    r"massacre[ds]?|massacring|slaughter(?:ed|ing|s)?|"
+    r"exterminate[ds]?|exterminating|wipe\s+out|wiped\s+out|wiping\s+out|"
+    r"behead(?:ed|ing|s)?|decapitate[ds]?|decapitating|"
+    r"hang(?:ed|ing|s)?|hung|lynch(?:ed|ing|es)?|string\s+up|strung\s+up|"
+    r"strangle[ds]?|strangling|choke(?:d|s)?|choking|choke\s+out|choked\s+out|"
+    r"suffocate[ds]?|suffocating|drown(?:ed|ing|s)?|"
+    r"beat\s+up|beat\s+to\s+death|beating\s+up|beaten\s+up|"
+    r"pummel(?:ed|ing|s)?|pummelled|"
+    r"break\s+(?:your|ur|his|her|their)\s+(?:bones?|neck|face|legs?|arms?|skull|jaw|teeth)|"
+    r"snap\s+(?:your|ur|his|her|their)\s+neck|"
+    r"smash\s+(?:your|ur|his|her|their)\s+(?:face|skull|head)|"
+    r"punch\s+(?:your|ur|his|her|their)\s+(?:face|teeth|lights\s+out)|"
+    r"crush\s+(?:your|ur|his|her|their)\s+(?:skull|head|throat)|"
+    r"poison(?:ed|ing|s)?|gas\s+them|gas\s+him|gas\s+her|gas\s+the|"
+    r"rape[ds]?|raping|sexually\s+assault(?:ed|ing|s)?|"
+    r"hunt\s+(?:you|him|her|them)\s+down|hunted\s+down|"
+    r"find\s+(?:you|him|her|them)\s+and\s+(?:kill|hurt|murder|beat|harm)|"
+    r"come\s+for\s+(?:you|him|her|them)|"
+    r"end\s+(?:you|him|her|them|their\s+life|her\s+life|his\s+life)|"
+    r"put\s+(?:a\s+)?bullet\s+in|"
+    r"slit\s+(?:your|his|her|their)\s+throat|"
+    r"bury\s+(?:you|him|her|them)|"
+    r"erase\s+(?:you|him|her|them)\s+from\s+(?:this|the)\s+(?:earth|world|planet))"
+)
+
+# Weapons/explosives that signal intent when paired with possession
+_WEAPON_NOUNS = (
+    r"(?:bomb|pipe\s+bomb|nail\s+bomb|car\s+bomb|nuke|nuclear\s+weapon|"
+    r"explosive(?:s)?|grenade(?:s)?|ied|"
+    r"automatic\s+rifle|assault\s+rifle|ak[\s-]?47|"
+    r"machete|sawed[\s-]off|"
+    r"sarin|anthrax|ricin|nerve\s+agent|biological\s+weapon|chemical\s+weapon|"
+    r"molotov(?:\s+cocktail)?)"
+)
+
+# "I will / we'll / I'm gonna ..." + violent verb
+_VIOLENT_INTENT_RE = re.compile(
+    rf"\b{_SUBJ}\s+{_INTENT}\s+{_VIOLENT_VERBS}\b",
+    re.IGNORECASE,
+)
+# Contraction form: "i'll / we'll / imma / i'm gonna" + violent verb
+_VIOLENT_INTENT_COMBO_RE = re.compile(
+    rf"\b{_SUBJ_INTENT_COMBO}\s+{_VIOLENT_VERBS}\b",
+    re.IGNORECASE,
+)
+# "let's kill / let's bomb / let's burn down ..."
+_LETS_VIOLENT_RE = re.compile(
+    rf"\blet\s*'?s\s+{_VIOLENT_VERBS}\b",
+    re.IGNORECASE,
+)
+# "should kill / need to bomb / gotta murder ..."
+_ADVOCACY_RE = re.compile(
+    rf"\b(?:should|needs?\s+to|gotta|must|deserves?\s+to)\s+(?:be\s+)?{_VIOLENT_VERBS}\b",
+    re.IGNORECASE,
+)
+# "I have a bomb / I've got an explosive / he has a grenade ..." (possession + intent context word)
+_POSSESS_WEAPON_RE = re.compile(
+    rf"\b{_SUBJ}\s+(?:'?ve\s+)?(?:has|have|had|got|own|bringing|carrying|holding|"
+    rf"made|making|built|building|planted|setting\s+up)\s+"
+    rf"(?:(?:a|an|the|my|some|several|multiple|loaded|live|real|another|two|three|"
+    rf"four|five|fully|semi|brand|new|fresh|powerful|deadly|big|huge|small|tiny|"
+    rf"working|functional|operational|\d+)\s+){{0,5}}{_WEAPON_NOUNS}\b",
+    re.IGNORECASE,
+)
+# Subject-less possession of a weapon: "carrying a loaded ak-47",
+# "bringing a grenade to school", "got a bomb", "planting an ied" —
+# inherently threatening regardless of whether a subject is stated.
+_POSSESS_WEAPON_BARE_RE = re.compile(
+    rf"\b(?:bringing|carrying|holding|smuggling|smuggle|stashing|stash|"
+    rf"hidden|hiding|loading\s+up|loaded\s+up|"
+    rf"got|gotten|grabbed|grabbing|"
+    rf"made|making|built|building|planted|planting|plant|"
+    rf"placing|place|setting\s+up|set\s+up|"
+    rf"acquired|acquiring|sourced|sourcing)\s+"
+    rf"(?:(?:a|an|the|my|some|several|multiple|loaded|live|real|another|two|three|"
+    rf"four|five|fully|semi|brand|new|fresh|powerful|deadly|big|huge|small|tiny|"
+    rf"working|functional|operational|\d+)\s+){{0,5}}{_WEAPON_NOUNS}\b",
+    re.IGNORECASE,
+)
+# "ive got a bomb" / "weve got grenades" — possession contraction without apostrophe
+_POSSESS_WEAPON_COMBO_RE = re.compile(
+    rf"\b{_SUBJ_INTENT_COMBO}\s+"
+    rf"(?:got|gotten|carried|carrying|holding|bringing|made|making|built|"
+    rf"building|planted|planting|stashed|stashing|hidden|hiding)\s+"
+    rf"(?:(?:a|an|the|my|some|several|multiple|loaded|live|real|another|two|three|"
+    rf"four|five|fully|semi|brand|new|fresh|powerful|deadly|big|huge|small|tiny|"
+    rf"working|functional|operational|\d+)\s+){{0,5}}{_WEAPON_NOUNS}\b",
+    re.IGNORECASE,
+)
+# Direct violent action toward people (no subject required) —
+# "kill them all", "shoot her", "rape them", "stab him", "behead them",
+# "exterminate every immigrant", "drown all of them"
+_VERB_PERSON_THREAT_RE = re.compile(
+    r"\b(?:bomb|nuke|shoot|stab|kill|murder|rape|behead|decapitate|"
+    r"strangle|drown|poison|gas|hang|lynch|string\s+up|"
+    r"massacre|slaughter|exterminate|eliminate|eradicate|destroy|"
+    r"torture|mutilate)\s+"
+    r"(?:them|him|her|y'?all|you\s+all|all\s+of\s+(?:you|them|us)|"
+    r"those|these|everyone|every\s+one\s+of\s+(?:them|us|you)|"
+    r"(?:the|every|all|those|these|those\s+filthy|all\s+the|some)\s+"
+    r"(?:kids?|children|jews?|muslims?|christians?|hindus?|sikhs?|"
+    r"buddhists?|gays?|lesbians?|trans|trannies|queers?|"
+    r"blacks?|whites?|asians?|arabs?|latinos?|mexicans?|"
+    r"immigrants?|refugees?|migrants?|"
+    r"cops?|police|infidels?|kafirs?|gentiles?|goyim|"
+    r"liberals?|conservatives?|democrats?|republicans?|"
+    r"women|men|girls?|boys?|babies|infants?))\b",
+    re.IGNORECASE,
+)
+# Body-part attack ("break his bones", "smash her face", "crush his skull")
+_BODY_PART_ATTACK_RE = re.compile(
+    r"\b(?:break|snap|smash|crush|punch|crack|shatter|destroy)\s+"
+    r"(?:your|ur|his|her|their|my|the|that|this)\s+"
+    r"(?:bones?|neck|face|legs?|arms?|skull|jaw|teeth|throat|head|"
+    r"spine|knees?|ribs?|nose|kneecaps?)\b",
+    re.IGNORECASE,
+)
+# "put a bullet in him / between her eyes / through their head"
+_BULLET_THREAT_RE = re.compile(
+    r"\bput\s+(?:a\s+)?bullet(?:s)?\s+(?:in|into|through|between)\s+"
+    r"(?:you|him|her|them|his|her|their|the|that)\b",
+    re.IGNORECASE,
+)
+# Mass-attack on a population / village / group
+_WIPE_OUT_RE = re.compile(
+    r"\b(?:wipe\s+out|exterminate|eliminate|eradicate|cleanse|purge|"
+    r"end\s+the\s+existence\s+of)\s+"
+    r"(?:the|that|this|their|all|every|every\s+single|those|these)\s+"
+    r"(?:village|town|city|tribe|race|nation|people|peoples|family|families|"
+    r"community|communities|kids?|children|men|women|jews?|muslims?|"
+    r"christians?|hindus?|gays?|blacks?|whites?|asians?|immigrants?)\b",
+    re.IGNORECASE,
+)
+# Direct "shoot up the X" / "bomb the X" / "burn down the X" — even without
+# subject/intent, this construction is essentially always a threat or call
+# to violence against a place.
+_ACTION_PLACE_RE = re.compile(
+    r"\b(?:bomb|nuke|burn\s+down|torch|firebomb|blow\s+up|shoot\s+up|"
+    r"attack|raid|destroy|massacre|storm|level)\s+"
+    r"(?:the|that|this|their|every|all|some)\s+"
+    r"(?:school|college|university|mall|church|mosque|synagogue|temple|"
+    r"office|building|airport|station|store|shop|hospital|club|bar|"
+    r"theater|theatre|cinema|stadium|arena|concert|festival|"
+    r"home|house|apartment|crowd|class|classroom|street|neighborhood|"
+    r"neighbourhood|town|city|village|place|venue|embassy|government|"
+    r"capitol|capital|parliament|courthouse|police\s+station)\b",
+    re.IGNORECASE,
+)
+
+
+def detect_violent_intent(text: str) -> bool:
+    """Return True if ``text`` contains a violent-intent construction.
+
+    Combines several context-aware regex passes:
+      - subject + intent + violent verb ("I will bomb the office")
+      - subject+intent contractions ("i'll murder", "we'll bomb", "imma shoot")
+      - "let's / should / need to / gotta + violent verb"
+      - weapon possession (with or without explicit subject)
+      - direct violent verb targeting people / body parts / places
+      - "put a bullet in", mass-attack on populations, body-part attacks
+
+    Safe lookalikes ("song is the bomb", "I bombed my exam", "gun show",
+    "explosive performance", "shoot for the stars", "killing it at work")
+    do NOT match — every pattern requires either a violent
+    subject+intent scaffold, a weapon noun, or a body-part/people object.
+    """
+    if not text:
+        return False
+    collapsed = _collapse(text)
+    return bool(
+        _VIOLENT_INTENT_RE.search(collapsed)
+        or _VIOLENT_INTENT_COMBO_RE.search(collapsed)
+        or _LETS_VIOLENT_RE.search(collapsed)
+        or _ADVOCACY_RE.search(collapsed)
+        or _POSSESS_WEAPON_RE.search(collapsed)
+        or _POSSESS_WEAPON_BARE_RE.search(collapsed)
+        or _POSSESS_WEAPON_COMBO_RE.search(collapsed)
+        or _VERB_PERSON_THREAT_RE.search(collapsed)
+        or _BODY_PART_ATTACK_RE.search(collapsed)
+        or _BULLET_THREAT_RE.search(collapsed)
+        or _WIPE_OUT_RE.search(collapsed)
+        or _ACTION_PLACE_RE.search(collapsed)
+    )
+
+
 # Categories that get RELAXED under Parental-Advisory / lyrics mode.
 # This is the "artistic expression" set — explicit lyrics on Pluto can
 # carry sexual content, hate-style aggression (a lot of rap/punk uses
@@ -437,6 +671,15 @@ def violation_for(text: str, allow_sexual: bool = False) -> Optional[str]:
         return "Your post can't be published — links aren't allowed on Pluto."
     if detect_morse_code(text):
         return "Your post can't be published — morse code isn't allowed on Pluto."
+    # Context-aware violent-intent (regex) — runs before the curated phrase
+    # categories so dynamically-phrased threats ("I will bomb the office")
+    # are caught even if the exact phrase isn't in the static lists.
+    if detect_violent_intent(text):
+        friendly = _FRIENDLY_LABELS.get("terror promotion", "violent threats")
+        return (
+            f"Your post was blocked for {friendly}. "
+            "Pluto doesn't allow threats, hate speech, abuse, or other harmful content."
+        )
     cat = detect_blocked_category(text, allow_sexual=allow_sexual)
     if cat:
         friendly = _FRIENDLY_LABELS.get(cat, cat)
