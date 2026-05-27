@@ -90,56 +90,56 @@ export const ShareCardModal = ({ open, onClose, post, track }) => {
     return () => clearInterval(id);
   }, [open, item]);
 
-  // When modal opens, auto-render the share card to a PNG so the user
-  // sees a real preview of what they'll download/share.
+  // Reset cached PNG when modal closes
   useEffect(() => {
-    let cancelled = false;
-    if (!open || !item) {
-      setPreviewUrl((u) => {
-        if (u) URL.revokeObjectURL(u);
-        return null;
+    if (open) return;
+    setPreviewUrl((u) => {
+      if (u) URL.revokeObjectURL(u);
+      return null;
+    });
+    setBlob(null);
+  }, [open]);
+
+  // Lazy renderer — only runs when the user actually requests a
+  // download or social share. The visual preview shown in the modal is
+  // the live HTML card scaled with CSS, so opening the modal is INSTANT.
+  // Caches the rendered blob so subsequent clicks don't re-rasterize.
+  const ensureRendered = async () => {
+    if (blob && previewUrl) return { blob, url: previewUrl };
+    setBusy(true);
+    try {
+      // Give the (already-mounted) card one frame to settle
+      await new Promise((r) => requestAnimationFrame(r));
+      if (!cardRef.current) throw new Error("card not mounted");
+      const canvas = await html2canvas(cardRef.current, {
+        backgroundColor: null,
+        scale: 1,
+        useCORS: true,
+        logging: false,
+        width: 1080,
+        height: 1350,
+        windowWidth: 1080,
+        windowHeight: 1350,
       });
-      setBlob(null);
-      return;
+      const b = await new Promise((resolve) =>
+        canvas.toBlob((bb) => resolve(bb), "image/png", 0.95)
+      );
+      if (!b) throw new Error("blob render failed");
+      const url = URL.createObjectURL(b);
+      setBlob(b);
+      setPreviewUrl((prev) => {
+        if (prev) URL.revokeObjectURL(prev);
+        return url;
+      });
+      return { blob: b, url };
+    } catch (e) {
+      console.error("share card render failed", e);
+      toast.error("Couldn't render share card");
+      return null;
+    } finally {
+      setBusy(false);
     }
-    const t = setTimeout(async () => {
-      setBusy(true);
-      try {
-        // Give the off-screen card a tick to mount
-        await new Promise((r) => requestAnimationFrame(r));
-        if (!cardRef.current) return;
-        const canvas = await html2canvas(cardRef.current, {
-          backgroundColor: null,
-          scale: 1,
-          useCORS: true,
-          logging: false,
-          width: 1080,
-          height: 1350,
-          windowWidth: 1080,
-          windowHeight: 1350,
-        });
-        const b = await new Promise((resolve) =>
-          canvas.toBlob((bb) => resolve(bb), "image/png", 0.95)
-        );
-        if (cancelled || !b) return;
-        const url = URL.createObjectURL(b);
-        setBlob(b);
-        setPreviewUrl((prev) => {
-          if (prev) URL.revokeObjectURL(prev);
-          return url;
-        });
-      } catch (e) {
-        console.error("share card render failed", e);
-        if (!cancelled) toast.error("Couldn't render share card");
-      } finally {
-        if (!cancelled) setBusy(false);
-      }
-    }, 60);
-    return () => {
-      cancelled = true;
-      clearTimeout(t);
-    };
-  }, [open, item, remaining]);
+  };
 
   if (!item) return null;
   const color = TOPIC_COLORS[item.topic] || "#00F0FF";
@@ -153,13 +153,11 @@ export const ShareCardModal = ({ open, onClose, post, track }) => {
 
   const safeId = item.id?.slice(0, 8) || (isMusic ? "track" : "post");
 
-  const handleDownload = () => {
-    if (!blob || !previewUrl) {
-      toast.message("Still rendering — try again in a sec");
-      return;
-    }
+  const handleDownload = async () => {
+    const r = blob && previewUrl ? { blob, url: previewUrl } : await ensureRendered();
+    if (!r) return;
     const a = document.createElement("a");
-    a.href = previewUrl;
+    a.href = r.url;
     a.download = `pluto-${isMusic ? "track" : "post"}-${safeId}.png`;
     document.body.appendChild(a);
     a.click();
@@ -168,10 +166,10 @@ export const ShareCardModal = ({ open, onClose, post, track }) => {
   };
 
   // Internal: download the PNG silently (used by Instagram/TikTok flow)
-  const silentDownload = () => {
-    if (!blob || !previewUrl) return false;
+  const silentDownload = (b, url) => {
+    if (!b || !url) return false;
     const a = document.createElement("a");
-    a.href = previewUrl;
+    a.href = url;
     a.download = `pluto-${isMusic ? "track" : "post"}-${safeId}.png`;
     document.body.appendChild(a);
     a.click();
@@ -193,11 +191,9 @@ export const ShareCardModal = ({ open, onClose, post, track }) => {
     : "Saw this on Pluto. Vanishes in 24h.";
 
   const handleNativeShare = async () => {
-    if (!blob) {
-      toast.message("Still rendering — try again in a sec");
-      return;
-    }
-    const file = new File([blob], `pluto-${safeId}.png`, {
+    const r = blob && previewUrl ? { blob, url: previewUrl } : await ensureRendered();
+    if (!r) return;
+    const file = new File([r.blob], `pluto-${safeId}.png`, {
       type: "image/png",
     });
     const shareData = {
@@ -256,11 +252,9 @@ export const ShareCardModal = ({ open, onClose, post, track }) => {
   // download the PNG, copy the post link, and open the platform so the user
   // can paste/upload in one go.
   const handleInstagram = async () => {
-    if (!blob) {
-      toast.message("Still rendering — try again in a sec");
-      return;
-    }
-    silentDownload();
+    const r = blob && previewUrl ? { blob, url: previewUrl } : await ensureRendered();
+    if (!r) return;
+    silentDownload(r.blob, r.url);
     await copyToClipboard(shareUrl);
     toast.success("PNG saved + link copied. Upload it as your Story.");
     setTimeout(() => {
@@ -269,11 +263,9 @@ export const ShareCardModal = ({ open, onClose, post, track }) => {
   };
 
   const handleTikTok = async () => {
-    if (!blob) {
-      toast.message("Still rendering — try again in a sec");
-      return;
-    }
-    silentDownload();
+    const r = blob && previewUrl ? { blob, url: previewUrl } : await ensureRendered();
+    if (!r) return;
+    silentDownload(r.blob, r.url);
     await copyToClipboard(shareUrl);
     toast.success("PNG saved + link copied. Upload it on TikTok.");
     setTimeout(() => {
@@ -358,21 +350,31 @@ export const ShareCardModal = ({ open, onClose, post, track }) => {
             {/* Scrollable middle: preview + copy link */}
             <div className="flex-1 overflow-y-auto px-5 sm:px-6 pb-3">
               <div
-                className="rounded-2xl overflow-hidden border border-white/10 bg-black aspect-[4/5] flex items-center justify-center"
+                className="rounded-2xl overflow-hidden border border-white/10 bg-black aspect-[4/5] relative"
                 data-testid="share-card-preview"
               >
-                {previewUrl ? (
-                  <img
-                    src={previewUrl}
-                    alt="Share card preview"
-                    className="w-full h-full object-contain"
-                  />
-                ) : (
-                  <div className="flex flex-col items-center gap-2 text-zinc-500">
-                    <Loader2 className="w-6 h-6 animate-spin" />
-                    <span className="text-xs font-mono uppercase tracking-widest">
-                      Rendering pluck card…
-                    </span>
+                {/*
+                  Live, scaled-down HTML preview of the share card.
+                  Renders INSTANTLY (zero rasterization) so the modal
+                  feels snappy. The actual PNG is generated lazily by
+                  ensureRendered() when the user clicks Download or any
+                  social share button.
+                */}
+                <ShareCardPreview
+                  item={item}
+                  isMusic={isMusic}
+                  color={color}
+                  author={author}
+                  remaining={remaining}
+                />
+                {busy && (
+                  <div className="absolute inset-0 flex items-center justify-center bg-black/40 backdrop-blur-[2px] text-zinc-200">
+                    <div className="flex items-center gap-2">
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      <span className="text-xs font-mono uppercase tracking-widest">
+                        Saving PNG…
+                      </span>
+                    </div>
                   </div>
                 )}
               </div>
@@ -404,7 +406,7 @@ export const ShareCardModal = ({ open, onClose, post, track }) => {
             <div className="shrink-0 border-t border-white/10 bg-[#0b0218]/85 backdrop-blur-xl px-3 sm:px-4 pt-3 pb-3">
               <button
                 onClick={handleDownload}
-                disabled={busy || !blob}
+                disabled={busy}
                 data-testid="share-download-btn"
                 className="w-full inline-flex items-center justify-center gap-2 rounded-full py-3 text-sm font-medium text-white bg-gradient-to-r from-purple-500 via-fuchsia-500 to-pink-500 hover:opacity-95 transition shadow-lg shadow-purple-500/30 disabled:opacity-50"
               >
@@ -500,6 +502,56 @@ export const ShareCardModal = ({ open, onClose, post, track }) => {
       ) : null}
     </AnimatePresence>,
     document.body,
+  );
+};
+
+/** Live (non-rasterized) preview rendered directly with CSS. Uses the
+ *  same internal layout as ShareCardCanvas but scales to fit the
+ *  modal's preview slot via a CSS transform computed from a
+ *  ResizeObserver — so the preview shows up INSTANTLY (no
+ *  html2canvas wait) and stays crisp at any modal width.
+ */
+const ShareCardPreview = ({ item, isMusic, color, author, remaining }) => {
+  const wrapRef = useRef(null);
+  const [scale, setScale] = useState(0.3);
+
+  useEffect(() => {
+    if (!wrapRef.current) return;
+    const el = wrapRef.current;
+    const recompute = () => {
+      const w = el.clientWidth;
+      if (w > 0) setScale(w / 1080);
+    };
+    recompute();
+    const ro = new ResizeObserver(recompute);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
+  return (
+    <div
+      ref={wrapRef}
+      className="absolute inset-0 overflow-hidden"
+      data-testid="share-card-live-preview"
+    >
+      <div
+        style={{
+          width: 1080,
+          height: 1350,
+          transform: `scale(${scale})`,
+          transformOrigin: "top left",
+        }}
+      >
+        <ShareCardCanvas
+          refEl={null}
+          item={item}
+          isMusic={isMusic}
+          color={color}
+          author={author}
+          remaining={remaining}
+        />
+      </div>
+    </div>
   );
 };
 

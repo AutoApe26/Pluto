@@ -1,0 +1,34 @@
+{
+  "summary": "Verified iteration_7 fixes: (A) moderation now blocks 15 bomb/threat/extremism phrases with friendly 'Your post was blocked for ...' detail mentioning 'violent extremism or terror promotion' OR 'hate speech, threats or abusive language'; safe lookalikes (bomb diggity, bombed my exam, etc.) still pass. (B) ShareCardModal now shows a live CSS-scaled preview within ~60-70ms (well under the 300ms spec), Download button enabled before rasterization with lazy 'Saving PNG' toast on click. All regression flows verified.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "test_report_links": [
+    "/app/backend/tests/test_moderation_v7_terror.py",
+    "/app/test_reports/pytest/iteration_7.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "moderation.py is now ~461 lines with many regex lists; if it grows beyond ~700 lines consider splitting into category modules (terror.py, hate.py, sexual.py).",
+    "ShareCardModal.jsx Download relies on ensureRendered() blob cache — confirmed cached on 2nd click. Consider also caching across Instagram/TikTok/NativeShare handlers (already implemented via blob ref).",
+    "Frontend safety.js mirror list must stay in sync with backend moderation.py — any future addition to terror regex must update both. Suggest a short comment cross-referencing."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_moderation_v7_terror.py (NEW)"
+  ],
+  "success_rate": {"backend": "100% (56/56 pytest)", "frontend": "100% on tested flows"},
+  "test_credentials": "n/a — anonymous device_id flow",
+  "seed_data_creation": "test_moderation_v7_terror.py uses a fresh uuid device_id per request; no manual seed.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Backend pytest is the source of truth for moderation: `export $(grep -v '^#' /app/frontend/.env | xargs) && cd /app && python -m pytest backend/tests/ -v`. Note: must export REACT_APP_BACKEND_URL into env before running. ShareCardModal live preview is identified by data-testid='share-card-live-preview' and now appears in <100ms in practice. MiniPlayer persistence must be tested via SPA link click (Home/Topics/Music nav links), NOT page.goto (which forces a full reload and unmounts the provider).",
+  "verified_flows": [
+    "POST /api/posts blocks 15 terror phrases with friendly detail (15/15)",
+    "POST /api/posts allows 4 safe lookalikes including 'bomb diggity' and 'bombed my exam' (4/4)",
+    "Live preview render time: 66ms (post share) / 62ms (music share)",
+    "No 'Rendering pluck card' spinner blocking preview",
+    "Download button enabled pre-raster; 'Saving PNG' toast confirmed",
+    "Copy link + 5 social share options present in modal",
+    "CreatePostModal: typing 'i will bomb that place' triggers unsafe-warning and locks submit with text 'Can't post — content blocked'",
+    "MiniPlayer iframe persists across SPA navigation Music -> Home -> Topics"
+  ]
+}
