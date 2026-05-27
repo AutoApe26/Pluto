@@ -48,6 +48,17 @@ Crypto, Sports, Memes, Mental Health, **Rant**, Stories, Confession, Music
 - [x] New Info page with 4 cards (What is Pluto? / Hug or Fug / Anonymous, but not free-for-all / $PNF product)
 - [x] Tested via testing_agent_v3 → **100% backend (21/21) / 100% frontend pass**
 
+### V3 (Pluto UI polish + music chatter) — 2026-02-27
+- [x] Pluto logo scroll-shine animation (useScrollShine hook + .pluto-logo-shining class + diagonal shimmer sweep) on Logo & PlutoSphere
+- [x] Trending feed re-sorted by topic priority: **Crypto → Music → Mental Health → Confession**, then others (Landing.jsx)
+- [x] TopicsGrid card order updated to match priority
+- [x] ShareCardModal redesigned as responsive **bottom sheet**: scrollable preview/copy-link body + sticky bottom action bar with horizontally scrollable social icons (X, Instagram, TikTok, Facebook, More). Removed old vertical "Share to…" dropdown.
+- [x] CreatePostModal refactored: flex-column with overflow-y body + sticky submit bar; safe-area-inset-bottom; mobile drag handle; sticky header.
+- [x] Music: YouTube external "Open original" link removed (Spotify external link preserved).
+- [x] Music bots now post **trending music news, artist updates, lyric snippets, and viral discussion prompts** to the #music topic via curated rotating templates (`_post_music_chatter` in bot_service.py). Each chatter post seeds believable hugs/fugs and is bumped by the engagement loop.
+- [x] Added "music" subreddits to TOPIC_SOURCES so #music also pulls real Reddit content alongside chatter.
+- [x] Tested via testing_agent_v3_fork → **100% backend (26/26) / 100% frontend pass**
+
 ## Backlog (P1)
 - TTL index on `posts.expires_at` and `music_posts.expires_at` for native expiry
 - Infinite scroll pagination
