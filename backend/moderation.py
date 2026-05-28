@@ -886,6 +886,45 @@ def detect_minor_sexual_abuse(text: str) -> bool:
     )
 
 
+# ---------------------------------------------------------------------------
+# Hard-blocked terms.
+#
+# Pluto is a 24-hour anonymous "drop a thought" feed — not a survivor
+# support forum or a news platform. Per product decision (v1.7), the
+# standalone words "rape" and "molest" (and their inflections) carry too
+# much harm potential and too little upside for this format, so they are
+# categorically blocked across all topics and modes (including lyrics).
+#
+# Tradeoff acknowledged: this also blocks authentic survivor disclosure
+# ("I was raped at 15") and critical/journalistic references ("the X rape
+# case"). The product team chose stricter enforcement over those use
+# cases — survivors have other dedicated platforms. Revisit by adding an
+# explicit allowlist regex if survivor-speech exceptions are wanted later.
+#
+# Word boundaries (\b) intentionally exclude lookalikes: grape, drape,
+# drapery, scraped, escape, rapeseed, molestation-of-data (none of which
+# match the inflection patterns below).
+# ---------------------------------------------------------------------------
+_HARD_BLOCKED_WORDS_RE = re.compile(
+    r"\b(?:rape(?:[ds]|rs?)?|raping|rapist(?:s)?|"
+    r"molest(?:ed|ing|s|er|ers|ation|ations)?)\b",
+    re.IGNORECASE,
+)
+
+
+def detect_hard_blocked_words(text: str) -> bool:
+    """Return True if ``text`` contains a standalone hard-blocked word.
+
+    Matches 'rape', 'raped', 'rapes', 'raping', 'rapist', 'rapists',
+    'molest', 'molested', 'molesting', 'molests', 'molester', 'molesters',
+    'molestation'. Does NOT match grape, drape, scraped, rapeseed, etc.
+    (word-boundary protected).
+    """
+    if not text:
+        return False
+    return bool(_HARD_BLOCKED_WORDS_RE.search(_collapse(text)))
+
+
 # Categories that get RELAXED under Parental-Advisory / lyrics mode.
 # This is the "artistic expression" set — explicit lyrics on Pluto can
 # carry sexual content, hate-style aggression (a lot of rap/punk uses
@@ -955,6 +994,15 @@ def violation_for(text: str, allow_sexual: bool = False) -> Optional[str]:
         return "Your post can't be published — links aren't allowed on Pluto."
     if detect_morse_code(text):
         return "Your post can't be published — morse code isn't allowed on Pluto."
+    # Hard-blocked standalone terms — "rape" and "molest" (and inflections)
+    # are categorically not allowed on Pluto in any context. Runs before
+    # the CSAM/violence detectors so the user sees the precise reason.
+    if detect_hard_blocked_words(text):
+        return (
+            "Your post can't be published — Pluto doesn't allow the words "
+            "'rape' or 'molest' (and their variants) in any context. "
+            "Please rewrite without these terms."
+        )
     # Highest-priority categorical block: child sexual abuse material.
     # NEVER relaxed under is_lyrics. Runs before everything else so the
     # error message accurately reflects this is the worst class of policy

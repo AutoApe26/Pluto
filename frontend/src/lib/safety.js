@@ -376,6 +376,19 @@ const detectMinorSexualAbuse = (norm) =>
   MINOR_ABUSE_ATTRACT_RE.test(norm) ||
   MINOR_ABUSE_PREP_RE.test(norm);
 
+// --- Hard-blocked standalone terms (mirrors backend
+// _HARD_BLOCKED_WORDS_RE). "rape" / "molest" and their inflections are
+// categorically not allowed on Pluto in any context — including lyrics
+// mode, survivor framings, news references. Word-boundary protected so
+// "grape", "drape", "scraped", "rapeseed" do NOT match. ---
+const HARD_BLOCKED_WORDS_RE = new RegExp(
+  "\\b(?:rape(?:[ds]|rs?)?|raping|rapist(?:s)?|" +
+    "molest(?:ed|ing|s|er|ers|ation|ations)?)\\b",
+  "i"
+);
+
+const detectHardBlockedWords = (norm) => HARD_BLOCKED_WORDS_RE.test(norm);
+
 const detectViolentIntent = (norm) =>
   INTENT_RE.test(norm) ||
   INTENT_COMBO_RE.test(norm) ||
@@ -393,6 +406,17 @@ const detectViolentIntent = (norm) =>
 export const screenContent = (text) => {
   if (!text) return { ok: true };
   const norm = normalize(text);
+  // 0) Hard-blocked standalone terms — categorical block on the exact
+  //    words 'rape' / 'molest' (and inflections). Runs first so the
+  //    user gets the precise reason rather than a generic threat msg.
+  if (detectHardBlockedWords(norm)) {
+    return {
+      ok: false,
+      reason:
+        "Pluto doesn't allow the words 'rape' or 'molest' (or their variants) in any context. Please rewrite without these terms.",
+      match: "hard-blocked-word",
+    };
+  }
   // 1) Highest-priority: child sexual abuse material (CSAM). Zero-tolerance,
   //    never relaxed under lyrics mode. Runs first so the message is accurate.
   if (detectMinorSexualAbuse(norm)) {
