@@ -169,13 +169,52 @@ _DOXXING = {
     "passport number", "license plate is",
 }
 _MINORS_SEXUAL = {
+    # Pre-existing curated phrases
     "cp", "child porn", "child p0rn", "underage porn", "underage nude",
     "loli", "lolicon", "shota", "shotacon", "lolita porn",
     "minor nudes", "minor nude", "child nudes", "kid nudes", "preteen porn",
     "teen porn 13", "teen porn 14", "teen porn 15",
     "send nudes kid", "groom a child", "grooming kids", "groom kids",
-    "child molest", "molest kids", "rape a kid", "rape children",
+    "child molest", "molest kids", "molest children", "molest a child",
+    "molest a minor", "molesting kids", "molesting children",
+    "rape a kid", "rape kids", "rape children", "rape a child",
+    "rape minors", "rape a minor", "raping kids", "raping children",
+    "raping minors", "raping a minor", "raping a child",
     "pedophile guide", "pedo guide", "pedo dating", "ageplay child",
+    # Closed gaps surfaced by v1.5 RCA — explicit sexual contact with minors.
+    # These are belt-and-braces alongside the _MINOR_SEXUAL_ABUSE_RE regex
+    # below, so the phrase-match layer ALSO catches them.
+    "fuck kids", "fuck a kid", "fuck children", "fuck a child",
+    "fuck minors", "fuck a minor", "fuck the kids", "fucking kids",
+    "fucking children", "fucking minors", "fucking a kid",
+    "fucking a child", "fucking a minor",
+    "sex with kids", "sex with a kid", "sex with children",
+    "sex with a child", "sex with minors", "sex with a minor",
+    "have sex with kids", "have sex with children", "have sex with minors",
+    "screw a kid", "screw kids", "screw a minor", "screw minors",
+    "screw children", "screw a child",
+    "abuse kids", "abuse children", "abuse minors",
+    "abusing kids", "abusing children", "abusing minors",
+    "grope kids", "grope children", "grope minors", "groping kids",
+    "groping children", "groping minors",
+    "touch kids", "touch children", "touching kids", "touching children",
+    "touch minors", "touching minors",
+    "i want to fuck a kid", "i want to fuck kids",
+    "i want to fuck a child", "i want to fuck children",
+    "i want to fuck a minor", "i want to fuck minors",
+    "i like to fuck kids", "i like to fuck children", "i like to fuck minors",
+    "i like to rape kids", "i like to rape children", "i like to rape minors",
+    "i like fucking kids", "i like fucking children", "i like fucking minors",
+    "i like raping kids", "i like raping children", "i like raping minors",
+    "attracted to kids", "attracted to children", "attracted to minors",
+    "attracted to little girls", "attracted to little boys",
+    "fuck little girls", "fuck little boys",
+    "rape little girls", "rape little boys",
+    "kiddie porn", "kiddy porn", "kiddie sex", "kiddy sex",
+    "child sex", "kid sex", "minor sex",
+    "child rape", "kid rape", "minor rape",
+    "pedo content", "pedo material", "pedo videos", "pedo pics",
+    "csam", "csa material", "child sexual abuse material",
 }
 _PIRACY = {
     "piratebay", "the pirate bay", "thepiratebay", "1337x", "rarbg",
@@ -669,6 +708,143 @@ def detect_violent_intent(text: str) -> bool:
     )
 
 
+# ---------------------------------------------------------------------------
+# Child Sexual Abuse Material (CSAM) / minor-sexual-abuse detector.
+#
+# v1.5 — added after a regression test showed that the prior curated phrase
+# set (_MINORS_SEXUAL) only matched specific strings like "rape children" /
+# "molest kids" but not adjacent constructions like "rape minors",
+# "fuck kids", "sex with a minor", "i like to fuck children", etc.
+#
+# This is a *combinatorial* matcher: any sexual/violent-sexual verb paired
+# with ANY minor referent fires the block. There is no safe lookalike — an
+# adult human writing about sexual contact with kids in any framing
+# (desire, claim, intent, fantasy, "joke") is policy-violating CSAM-adjacent
+# content full-stop. This category is NEVER relaxed under is_lyrics.
+# ---------------------------------------------------------------------------
+
+# Sexual / violent-sexual verbs that pair with a minor object.
+_SEXUAL_ABUSE_VERBS = (
+    r"(?:rape(?:d|s|r|rs)?|raping|"
+    r"fuck(?:ed|ing|s|er|ers)?|fucken|fukn|"
+    r"screw(?:ed|ing|s)?|"
+    r"bang(?:ed|ing|s)?|bone(?:d|s)?|boning|"
+    r"smash(?:ed|ing|es)?|"
+    r"hump(?:ed|ing|s)?|"
+    r"molest(?:ed|ing|s|er|ers)?|"
+    r"abuse(?:d|s|r|rs)?|abusing|"
+    r"grope(?:d|s|r|rs)?|groping|"
+    r"finger(?:ed|ing|s)?|"
+    r"diddle(?:d|s|r|rs)?|diddling|"
+    r"violate(?:d|s|r|rs)?|violating|"
+    r"assault(?:ed|ing|s)?|"
+    r"have\s+sex\s+with|having\s+sex\s+with|had\s+sex\s+with|sex\s+with|"
+    r"sleep\s+with|sleeping\s+with|slept\s+with|"
+    r"hook\s+up\s+with|hooking\s+up\s+with|hooked\s+up\s+with|"
+    r"date|dating|dated|"
+    r"penetrate(?:d|s)?|penetrating|"
+    r"go\s+down\s+on|going\s+down\s+on|went\s+down\s+on|"
+    r"touch(?:ed|ing|es)?|"
+    r"jerk\s+off\s+(?:to|with|on)|jerking\s+off\s+(?:to|with|on)|"
+    r"masturbate\s+(?:to|with)|masturbating\s+(?:to|with)|"
+    r"cum\s+(?:on|in|with)|cumming\s+(?:on|in|with))"
+)
+
+# Minor referents — anyone clearly under 18 or framed as such.
+_MINOR_REFERENT = (
+    r"(?:kid(?:s|do|dos)?|kiddie(?:s)?|kiddo(?:s)?|"
+    r"child|children|"
+    r"minor(?:s)?|"
+    r"toddler(?:s)?|infant(?:s)?|bab(?:y|ies)|newborn(?:s)?|"
+    r"preteen(?:s)?|pre[\s-]?teen(?:s)?|"
+    r"underage(?:d)?|under[\s-]?18|under\s+eighteen|"
+    r"(?:a\s+)?\d{1,2}[\s-]?(?:yo|yr[\s-]?old|year[\s-]?old|y\.o\.)|"
+    r"(?:little|small|tiny|baby|young|smol)\s+(?:girl|boy|kid|child|one)s?|"
+    r"little\s+ones?|young\s+ones?|"
+    r"(?:school|grade|elementary|middle\s+school|primary\s+school|"
+    r"kindergarten|nursery|daycare)\s+(?:kid|child|girl|boy|student)s?|"
+    r"(?:5|6|7|8|9|10|11|12|13|14|15)\s+(?:yo|yr|year|y[\.\s]o))"
+)
+
+# Subject/desire framings that often precede the verb (catches "I like to",
+# "I want to", "I love to", "I enjoy", "I fantasize about", etc.). Optional.
+_SEXUAL_ABUSE_DESIRE = (
+    r"(?:i\s+(?:like|love|want|wanna|enjoy|prefer|crave|need|gotta|"
+    r"have\s+to|gotsta|wish\s+to|dream\s+about|fantasize\s+about|"
+    r"think\s+about|get\s+off\s+(?:to|on)|jerk\s+off\s+to)\s+"
+    r"(?:to\s+)?)"
+)
+
+# 1) Direct verb + minor object (with optional articles/adjectives in between)
+_MINOR_ABUSE_DIRECT_RE = re.compile(
+    rf"\b{_SEXUAL_ABUSE_VERBS}\s+"
+    rf"(?:(?:a|an|the|some|any|my|all|every|those|these|young|little|"
+    rf"small|tiny|innocent|cute|hot|pretty|fresh|brand[\s-]new)\s+){{0,5}}"
+    rf"{_MINOR_REFERENT}\b",
+    re.IGNORECASE,
+)
+
+# 2) Desire framing + verb + minor object
+#    "i like to fuck minors", "i want to rape children", "i enjoy molesting kids"
+_MINOR_ABUSE_DESIRE_RE = re.compile(
+    rf"\b{_SEXUAL_ABUSE_DESIRE}{_SEXUAL_ABUSE_VERBS}\s+"
+    rf"(?:(?:a|an|the|some|any|my|all|every|those|these|young|little|"
+    rf"small|tiny|innocent|cute|hot|pretty|fresh|brand[\s-]new)\s+){{0,5}}"
+    rf"{_MINOR_REFERENT}\b",
+    re.IGNORECASE,
+)
+
+# 3) "attracted to / aroused by / turned on by + minor referent"
+_MINOR_ABUSE_ATTRACTION_RE = re.compile(
+    rf"\b(?:attracted\s+to|aroused\s+by|turned\s+on\s+by|"
+    rf"horny\s+for|lust(?:ing|ful)?\s+(?:for|after)|"
+    rf"obsessed\s+with|crushing\s+on|in\s+love\s+with|"
+    rf"want\s+to\s+touch|wanna\s+touch|wanna\s+see|"
+    rf"want\s+nudes\s+(?:from|of)|wanna\s+see\s+nudes\s+of)\s+"
+    rf"(?:(?:a|an|the|some|any|my|all|every|those|these|young|little|"
+    rf"small|tiny|innocent|cute|hot|pretty)\s+){{0,5}}"
+    rf"{_MINOR_REFERENT}\b",
+    re.IGNORECASE,
+)
+
+# 4) "sex(ual) [optional noun] with/of/around minor" — non-verb constructions
+#    "having sex with a 12yo", "sexual relationship with a kid",
+#    "intimate moments with a child", "romantic encounter with a minor"
+_MINOR_ABUSE_SEX_PREP_RE = re.compile(
+    rf"\b(?:sex|sexual|sexually|intimate|romantic|romance)"
+    rf"(?:\s+\w+){{0,3}}\s+"
+    rf"(?:with|of|around|involving|between|toward(?:s)?)\s+"
+    rf"(?:(?:a|an|the|some|any|my|all|every|those|these|young|little|"
+    rf"small|tiny|two|three|four|five)\s+){{0,5}}"
+    rf"{_MINOR_REFERENT}\b",
+    re.IGNORECASE,
+)
+
+
+def detect_minor_sexual_abuse(text: str) -> bool:
+    """Return True if ``text`` contains a sexual-abuse-of-minors construction.
+
+    This is a categorical, never-relaxed block. The detector pairs any
+    sexual/violent-sexual verb with any minor referent (kids, children,
+    minors, toddlers, infants, babies, preteens, "5yo", "little girl/boy",
+    "schoolkid", etc.). Desire framings ("I like to fuck kids",
+    "I want to rape children", "attracted to minors") and prepositional
+    constructions ("sex with a minor", "intimate with kids") all match.
+
+    There is no safe lookalike — anyone writing this pattern in any
+    framing is producing CSAM-adjacent text.
+    """
+    if not text:
+        return False
+    collapsed = _collapse(text)
+    return bool(
+        _MINOR_ABUSE_DIRECT_RE.search(collapsed)
+        or _MINOR_ABUSE_DESIRE_RE.search(collapsed)
+        or _MINOR_ABUSE_ATTRACTION_RE.search(collapsed)
+        or _MINOR_ABUSE_SEX_PREP_RE.search(collapsed)
+    )
+
+
 # Categories that get RELAXED under Parental-Advisory / lyrics mode.
 # This is the "artistic expression" set — explicit lyrics on Pluto can
 # carry sexual content, hate-style aggression (a lot of rap/punk uses
@@ -710,6 +886,7 @@ def detect_blocked_category(text: str, allow_sexual: bool = False) -> Optional[s
 
 _FRIENDLY_LABELS = {
     "extremism/dehumanization": "extremist or dehumanizing language (Nazi/KKK slogans, genocide calls)",
+    "minor sexual abuse": "sexual content involving minors (child sexual abuse material)",
     "hate/harassment": "hate speech, threats or abusive language",
     "doxxing": "personal information / doxxing",
     "content involving minors": "content involving minors",
@@ -737,6 +914,16 @@ def violation_for(text: str, allow_sexual: bool = False) -> Optional[str]:
         return "Your post can't be published — links aren't allowed on Pluto."
     if detect_morse_code(text):
         return "Your post can't be published — morse code isn't allowed on Pluto."
+    # Highest-priority categorical block: child sexual abuse material.
+    # NEVER relaxed under is_lyrics. Runs before everything else so the
+    # error message accurately reflects this is the worst class of policy
+    # violation — not generic "violent threats" or "sexual content".
+    if detect_minor_sexual_abuse(text):
+        friendly = _FRIENDLY_LABELS["minor sexual abuse"]
+        return (
+            f"Your post was blocked for {friendly}. "
+            "This is a zero-tolerance violation. Repeat attempts may be reported."
+        )
     # Context-aware violent-intent (regex) — runs before the curated phrase
     # categories so dynamically-phrased threats ("I will bomb the office")
     # are caught even if the exact phrase isn't in the static lists.

@@ -256,6 +256,88 @@ const ACTION_PLACE_RE = new RegExp(
   "i"
 );
 
+// --- Child Sexual Abuse Material (CSAM) detector — mirrors backend
+// detect_minor_sexual_abuse(). NEVER relaxed under lyrics mode. ---
+const ABUSE_VERBS =
+  "(?:rape(?:d|s|r|rs)?|raping|" +
+  "fuck(?:ed|ing|s|er|ers)?|fucken|fukn|" +
+  "screw(?:ed|ing|s)?|" +
+  "bang(?:ed|ing|s)?|bone(?:d|s)?|boning|" +
+  "smash(?:ed|ing|es)?|" +
+  "hump(?:ed|ing|s)?|" +
+  "molest(?:ed|ing|s|er|ers)?|" +
+  "abuse(?:d|s|r|rs)?|abusing|" +
+  "grope(?:d|s|r|rs)?|groping|" +
+  "finger(?:ed|ing|s)?|" +
+  "diddle(?:d|s|r|rs)?|diddling|" +
+  "violate(?:d|s|r|rs)?|violating|" +
+  "assault(?:ed|ing|s)?|" +
+  "have\\s+sex\\s+with|having\\s+sex\\s+with|had\\s+sex\\s+with|sex\\s+with|" +
+  "sleep\\s+with|sleeping\\s+with|slept\\s+with|" +
+  "hook\\s+up\\s+with|hooking\\s+up\\s+with|hooked\\s+up\\s+with|" +
+  "date|dating|dated|" +
+  "penetrate(?:d|s)?|penetrating|" +
+  "go\\s+down\\s+on|going\\s+down\\s+on|went\\s+down\\s+on|" +
+  "touch(?:ed|ing|es)?|" +
+  "jerk\\s+off\\s+(?:to|with|on)|jerking\\s+off\\s+(?:to|with|on)|" +
+  "masturbate\\s+(?:to|with)|masturbating\\s+(?:to|with)|" +
+  "cum\\s+(?:on|in|with)|cumming\\s+(?:on|in|with))";
+
+const MINOR_REF =
+  "(?:kid(?:s|do|dos)?|kiddie(?:s)?|kiddo(?:s)?|" +
+  "child|children|" +
+  "minor(?:s)?|" +
+  "toddler(?:s)?|infant(?:s)?|bab(?:y|ies)|newborn(?:s)?|" +
+  "preteen(?:s)?|pre[\\s-]?teen(?:s)?|" +
+  "underage(?:d)?|under[\\s-]?18|under\\s+eighteen|" +
+  "(?:a\\s+)?\\d{1,2}[\\s-]?(?:yo|yr[\\s-]?old|year[\\s-]?old|y\\.o\\.)|" +
+  "(?:little|small|tiny|baby|young|smol)\\s+(?:girl|boy|kid|child|one)s?|" +
+  "little\\s+ones?|young\\s+ones?|" +
+  "(?:school|grade|elementary|middle\\s+school|primary\\s+school|" +
+  "kindergarten|nursery|daycare)\\s+(?:kid|child|girl|boy|student)s?|" +
+  "(?:5|6|7|8|9|10|11|12|13|14|15)\\s+(?:yo|yr|year|y[\\.\\s]o))";
+
+const DESIRE =
+  "(?:i\\s+(?:like|love|want|wanna|enjoy|prefer|crave|need|gotta|" +
+  "have\\s+to|wish\\s+to|dream\\s+about|fantasize\\s+about|" +
+  "think\\s+about|get\\s+off\\s+(?:to|on)|jerk\\s+off\\s+to)\\s+" +
+  "(?:to\\s+)?)";
+
+const ARTICLE =
+  "(?:(?:a|an|the|some|any|my|all|every|those|these|young|little|" +
+  "small|tiny|innocent|cute|hot|pretty|fresh|brand[\\s-]new)\\s+){0,5}";
+
+const MINOR_ABUSE_DIRECT_RE = new RegExp(
+  `\\b${ABUSE_VERBS}\\s+${ARTICLE}${MINOR_REF}\\b`,
+  "i"
+);
+const MINOR_ABUSE_DESIRE_RE = new RegExp(
+  `\\b${DESIRE}${ABUSE_VERBS}\\s+${ARTICLE}${MINOR_REF}\\b`,
+  "i"
+);
+const MINOR_ABUSE_ATTRACT_RE = new RegExp(
+  `\\b(?:attracted\\s+to|aroused\\s+by|turned\\s+on\\s+by|` +
+    `horny\\s+for|lust(?:ing|ful)?\\s+(?:for|after)|` +
+    `obsessed\\s+with|crushing\\s+on|in\\s+love\\s+with|` +
+    `want\\s+to\\s+touch|wanna\\s+touch|wanna\\s+see|` +
+    `want\\s+nudes\\s+(?:from|of)|wanna\\s+see\\s+nudes\\s+of)\\s+` +
+    `${ARTICLE}${MINOR_REF}\\b`,
+  "i"
+);
+const MINOR_ABUSE_PREP_RE = new RegExp(
+  `\\b(?:sex|sexual|sexually|intimate|romantic|romance)` +
+    `(?:\\s+\\w+){0,3}\\s+` +
+    `(?:with|of|around|involving|between|toward(?:s)?)\\s+` +
+    `${ARTICLE}${MINOR_REF}\\b`,
+  "i"
+);
+
+const detectMinorSexualAbuse = (norm) =>
+  MINOR_ABUSE_DIRECT_RE.test(norm) ||
+  MINOR_ABUSE_DESIRE_RE.test(norm) ||
+  MINOR_ABUSE_ATTRACT_RE.test(norm) ||
+  MINOR_ABUSE_PREP_RE.test(norm);
+
 const detectViolentIntent = (norm) =>
   INTENT_RE.test(norm) ||
   INTENT_COMBO_RE.test(norm) ||
@@ -273,7 +355,17 @@ const detectViolentIntent = (norm) =>
 export const screenContent = (text) => {
   if (!text) return { ok: true };
   const norm = normalize(text);
-  // 1) Phrase list (high-signal verbatim)
+  // 1) Highest-priority: child sexual abuse material (CSAM). Zero-tolerance,
+  //    never relaxed under lyrics mode. Runs first so the message is accurate.
+  if (detectMinorSexualAbuse(norm)) {
+    return {
+      ok: false,
+      reason:
+        "This post was blocked for sexual content involving minors (child sexual abuse material). This is a zero-tolerance violation.",
+      match: "minor-sexual-abuse",
+    };
+  }
+  // 2) Phrase list (high-signal verbatim)
   for (const phrase of PHRASES) {
     if (norm.includes(phrase)) {
       return {
@@ -284,7 +376,7 @@ export const screenContent = (text) => {
       };
     }
   }
-  // 2) Context-aware violent intent (regex)
+  // 3) Context-aware violent intent (regex)
   if (detectViolentIntent(norm)) {
     return {
       ok: false,
