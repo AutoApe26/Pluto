@@ -61,14 +61,38 @@ def _squash(text: str) -> str:
 # Blocked-category phrase sets. Each phrase is matched against BOTH the
 # collapsed form (with word boundaries) and the squashed form (substring).
 # ---------------------------------------------------------------------------
+# Extremism / dehumanization / genocide slogans — these are NEVER relaxed,
+# not even under is_lyrics+#music. These aren't "artistic expression" — they
+# are organizing language for political violence and are criminalized in most
+# of Pluto's likely markets (DE §86a/§130, FR Loi Gayssot, UK OSA, AU eSafety).
+_EXTREMISM = {
+    # white-supremacist organizing slogans / codes
+    "kkk", "white power", "white pride", "white genocide is real",
+    "heil hitler", "sieg heil", "hail hitler", "hail victory",
+    "1488", "14/88", "14 words", "fourteen words",
+    "blood and soil", "blut und boden",
+    "jews will not replace us", "jews wont replace us",
+    "great replacement is real", "the great replacement",
+    "rahowa", "racial holy war",
+    # explicit eliminationist calls (these duplicate-protect _TERROR)
+    "gas the jews", "gas the blacks", "gas the kikes",
+    "race war now", "race traitor must die",
+    "death to the jews", "death to muslims", "death to blacks",
+    "death to whites", "death to gays", "death to trans",
+    # Islamist eliminationist
+    "death to america", "death to israel",
+    # other org slogans
+    "ss honour", "totenkopf glory",
+}
+# Slurs + abusive insults. These appear in mainstream lyrics (rap, punk,
+# metal) and are relaxed under lyrics mode. Eliminationist/organizing
+# slogans live in _EXTREMISM above and stay blocked even in lyrics mode.
 _HATE = {
-    # racial/ethnic slurs and slogans
+    # racial/ethnic slurs
     "kike", "kikes", "nigger", "niggers", "nigga", "niggas", "n1gger", "n1gga",
     "chink", "chinks", "spic", "spics", "gook", "gooks", "wetback", "wetbacks",
     "towelhead", "sandnigger", "sand nigger", "raghead", "beaner", "beaners",
-    "kkk", "white power", "white pride", "heil hitler", "sieg heil",
-    "1488", "14/88", "14 words", "blood and soil", "jews will not replace us",
-    "gas the jews", "gas the blacks", "race war now", "race traitor",
+    "race traitor",
     # anti-LGBT slurs
     "faggot", "faggots", "fag", "fags", "tranny", "trannies", "dyke", "dykes",
     "homo trash", "queer trash",
@@ -180,11 +204,33 @@ _SCAMS = {
 _TERROR = {
     "isis recruit", "isis recruiter", "join isis", "join al-qaeda",
     "join al qaeda", "join hamas terror", "join boko haram",
-    # bomb-making
+    # bomb-making (generic)
     "make a bomb", "build a bomb", "build pipe bomb", "pipe bomb tutorial",
     "how to make a bomb", "how to build a bomb", "homemade bomb",
     "ied tutorial", "explosive vest", "suicide vest", "suicide bomber",
     "improvised explosive", "build an ied", "make an ied",
+    # specific explosive materials — tutorial/construction context only,
+    # not bare nouns (avoids false positives on song titles like BTS
+    # "Dynamite" or AC/DC "TNT" and slang "you're dynamite tonight").
+    "make dynamite", "made dynamite", "making dynamite", "build dynamite",
+    "homemade dynamite", "diy dynamite", "rig dynamite", "rigging dynamite",
+    "stick of dynamite", "case of dynamite", "crate of dynamite",
+    "pack of dynamite", "bundle of dynamite",
+    "make tnt", "homemade tnt", "diy tnt", "rig tnt", "rigging tnt",
+    "stick of tnt", "case of tnt", "crate of tnt", "block of tnt",
+    "make c4", "make c-4", "homemade c4", "homemade c-4", "diy c4",
+    "rig c4", "rig c-4", "pack of c4", "block of c4", "block of c-4",
+    "make semtex", "homemade semtex", "rig semtex",
+    "make thermite", "homemade thermite", "diy thermite", "thermite charge",
+    "make napalm", "homemade napalm", "diy napalm",
+    "make anfo", "homemade anfo", "anfo bomb", "anfo charge",
+    "make tatp", "homemade tatp", "diy tatp",
+    "make hmtd", "homemade hmtd", "diy hmtd",
+    "ammonium nitrate bomb", "fertilizer bomb", "fertiliser bomb",
+    "pressure cooker bomb", "pressure-cooker bomb",
+    "nail bomb tutorial", "shrapnel bomb", "shrapnel charge",
+    "blasting cap tutorial", "detonator tutorial",
+    "plastic explosive tutorial",
     # bomb / explosive / arson threats (directed at a place or person)
     "i'll bomb", "ill bomb", "i will bomb", "imma bomb",
     "gonna bomb", "going to bomb", "we'll bomb", "well bomb",
@@ -310,6 +356,7 @@ _MISINFO = {
 
 # Each tuple: (label-shown-to-user, phrase set)
 _CATEGORIES: list[Tuple[str, set[str]]] = [
+    ("extremism/dehumanization", _EXTREMISM),
     ("hate/harassment", _HATE),
     ("hate/harassment", _HARASSMENT),
     ("doxxing", _DOXXING),
@@ -454,7 +501,20 @@ _WEAPON_NOUNS = (
     r"automatic\s+rifle|assault\s+rifle|ak[\s-]?47|"
     r"machete|sawed[\s-]off|"
     r"sarin|anthrax|ricin|nerve\s+agent|biological\s+weapon|chemical\s+weapon|"
-    r"molotov(?:\s+cocktail)?)"
+    r"molotov(?:\s+cocktail)?|"
+    # Unambiguous explosive materials. Note: 'dynamite' and 'tnt' are NOT
+    # in this regex on purpose — both are widely used in song titles,
+    # band names, and as slang for "great". They're covered by high-signal
+    # phrases in _TERROR ('stick of dynamite', 'homemade tnt', etc).
+    r"c[\s-]?4|c[\s-]?4\s+(?:charge|brick|block)|semtex|pe[\s-]?4|"
+    r"nitroglycerin(?:e)?|nitroglycerine|"
+    r"ammonium\s+nitrate|anfo|tatp|hmtd|"
+    r"thermite\s+(?:charge|grenade|bomb)|"
+    r"napalm\s+(?:bomb|grenade|charge|round)|"
+    r"det\s+cord|detcord|detonating\s+cord|"
+    r"detonator(?:s)?|blasting\s+cap(?:s)?|"
+    r"plastic\s+explosive(?:s)?|shaped\s+charge(?:s)?|"
+    r"pressure[\s-]?cooker\s+bomb|fertili[sz]er\s+bomb)"
 )
 
 # "I will / we'll / I'm gonna ..." + violent verb
@@ -611,10 +671,13 @@ def detect_violent_intent(text: str) -> bool:
 # This is the "artistic expression" set — explicit lyrics on Pluto can
 # carry sexual content, hate-style aggression (a lot of rap/punk uses
 # slurs/insults for effect), and exaggerated/false claims (lyrics are
-# hyperbolic by nature). Everything OUTSIDE this set — doxxing, minors,
-# piracy, scams, terror, self-harm, links, morse code — stays blocked
-# because none of those are "lyrical expression", they are illegal or
-# unsafe content full-stop.
+# hyperbolic by nature). Everything OUTSIDE this set — extremism/
+# dehumanization slogans, doxxing, minors, piracy, scams, terror, self-
+# harm, links, morse code — stays blocked because none of those are
+# "lyrical expression", they are illegal or unsafe content full-stop.
+# NOTE: extremism/dehumanization is the NEW never-relaxed slice carved
+# out of the old _HATE list — Nazi/KKK slogans, genocide chants, and
+# eliminationist calls now stay blocked even with is_lyrics=true.
 _LYRICS_RELAXED_CATEGORIES = {
     "sexual content",
     "hate/harassment",
@@ -644,6 +707,7 @@ def detect_blocked_category(text: str, allow_sexual: bool = False) -> Optional[s
 
 
 _FRIENDLY_LABELS = {
+    "extremism/dehumanization": "extremist or dehumanizing language (Nazi/KKK slogans, genocide calls)",
     "hate/harassment": "hate speech, threats or abusive language",
     "doxxing": "personal information / doxxing",
     "content involving minors": "content involving minors",

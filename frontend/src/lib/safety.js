@@ -32,15 +32,43 @@ const PHRASES = [
   "you're subhuman", "youre subhuman", "subhuman scum",
   // hate / slurs (only the most unambiguous)
   "nigger", "kike", "faggot", "tranny",
+  // extremism / dehumanization — NEVER relaxed (mirrors backend _EXTREMISM)
   "kill all jews", "kill all muslims", "kill all blacks", "kill all whites",
-  "gas the jews", "race war now", "white power", "white pride",
-  "heil hitler", "sieg heil",
+  "gas the jews", "gas the blacks", "race war now",
+  "white power", "white pride", "white genocide is real",
+  "heil hitler", "hail hitler", "sieg heil", "hail victory",
+  "1488", "14/88", "14 words", "fourteen words",
+  "blood and soil", "jews will not replace us", "jews wont replace us",
+  "great replacement is real", "rahowa", "racial holy war",
+  "death to the jews", "death to muslims", "death to blacks",
+  "death to whites", "death to gays", "death to trans",
+  "death to america", "death to israel",
+  "kkk",
   // terror / mass violence
   "shoot up a school", "shoot up the school", "shoot up the mall",
   "shoot up the office", "shoot up this", "shoot up that",
   "make a bomb", "build a bomb", "build a pipe bomb", "pipe bomb",
   "how to make a bomb", "homemade bomb", "ied tutorial",
   "explosive vest", "suicide vest", "improvised explosive",
+  // explosive materials (high-signal phrases — mirrors backend _TERROR)
+  "make dynamite", "made dynamite", "making dynamite", "build dynamite",
+  "homemade dynamite", "diy dynamite", "rig dynamite",
+  "stick of dynamite", "case of dynamite", "crate of dynamite",
+  "pack of dynamite", "bundle of dynamite",
+  "make tnt", "homemade tnt", "diy tnt", "rig tnt",
+  "stick of tnt", "case of tnt", "crate of tnt", "block of tnt",
+  "make c4", "make c-4", "homemade c4", "homemade c-4",
+  "diy c4", "rig c4", "rig c-4", "pack of c4", "block of c4", "block of c-4",
+  "make semtex", "homemade semtex", "rig semtex",
+  "make thermite", "homemade thermite", "thermite charge",
+  "make napalm", "homemade napalm",
+  "make anfo", "homemade anfo", "anfo bomb",
+  "make tatp", "homemade tatp",
+  "make hmtd", "homemade hmtd",
+  "ammonium nitrate bomb", "fertilizer bomb", "fertiliser bomb",
+  "pressure cooker bomb", "pressure-cooker bomb",
+  "nail bomb tutorial", "blasting cap tutorial", "detonator tutorial",
+  "plastic explosive tutorial",
   // direct bomb / explosive / arson threats
   "i'll bomb", "ill bomb", "i will bomb", "imma bomb",
   "gonna bomb", "going to bomb",
@@ -117,7 +145,19 @@ const WEAPON_NOUNS =
   "(?:bomb|pipe\\s+bomb|nail\\s+bomb|car\\s+bomb|nuke|nuclear\\s+weapon|" +
   "explosive(?:s)?|grenade(?:s)?|ied|automatic\\s+rifle|assault\\s+rifle|" +
   "ak[\\s-]?47|machete|sawed[\\s-]off|sarin|anthrax|ricin|nerve\\s+agent|" +
-  "biological\\s+weapon|chemical\\s+weapon|molotov(?:\\s+cocktail)?)";
+  "biological\\s+weapon|chemical\\s+weapon|molotov(?:\\s+cocktail)?|" +
+  // Mirrors backend _WEAPON_NOUNS: unambiguous explosive materials.
+  // 'dynamite' and 'tnt' are intentionally excluded (heavy metaphor/
+  // song-title overlap) — covered by phrase list instead.
+  "c[\\s-]?4|c[\\s-]?4\\s+(?:charge|brick|block)|semtex|pe[\\s-]?4|" +
+  "nitroglycerin(?:e)?|nitroglycerine|" +
+  "ammonium\\s+nitrate|anfo|tatp|hmtd|" +
+  "thermite\\s+(?:charge|grenade|bomb)|" +
+  "napalm\\s+(?:bomb|grenade|charge|round)|" +
+  "det\\s+cord|detcord|detonating\\s+cord|" +
+  "detonator(?:s)?|blasting\\s+cap(?:s)?|" +
+  "plastic\\s+explosive(?:s)?|shaped\\s+charge(?:s)?|" +
+  "pressure[\\s-]?cooker\\s+bomb|fertili[sz]er\\s+bomb)";
 
 const INTENT_RE = new RegExp(`\\b${SUBJ}\\s+${INTENT}\\s+${VIOLENT_VERBS}\\b`, "i");
 const INTENT_COMBO_RE = new RegExp(

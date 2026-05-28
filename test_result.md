@@ -262,16 +262,71 @@ frontend:
         agent: "main"
         comment: "If post.lang exists and isn't 'en', a small 'see translation' affordance shows under the body. Click → POST /api/posts/{id}/translate, render in a purple-tinted block beneath the original. Toggle hide/show after first fetch."
 
+  - task: "Extremism / dehumanization category (never-relaxed under lyrics mode)"
+    implemented: true
+    working: true
+    file: "/app/backend/moderation.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "v1.4 NEW. Carved Nazi/KKK slogans, genocide chants, and eliminationist calls out of _HATE into a new _EXTREMISM set with label 'extremism/dehumanization'. This label is NOT in _LYRICS_RELAXED_CATEGORIES, so it blocks even with is_lyrics=true on #music. Smoke-tested live: 'heil hitler my brothers, sieg heil tonight' on topic=music+is_lyrics=true now returns 400 with new friendly label. 'kkk forever', 'white power 1488', 'jews will not replace us', 'death to israel', 'gas the jews' all blocked in lyrics mode. Generic slurs like 'fuckin nigga ass faggot' are STILL relaxed (stay in _HATE, accepted on music+is_lyrics=true)."
+      - working: true
+        agent: "testing"
+        comment: "✅ VERIFIED v1.4 - 8/9 tests passed (88.9% success). BLOCKED tests (all correctly returned 400): (1a) Nazi slogan 'heil hitler' on music+is_lyrics=true correctly blocked with extremism keyword. (1b) Nazi slogan on stories correctly blocked. (1c) KKK slogan on music+is_lyrics=true correctly blocked. (1d) White power slogan on music+is_lyrics=true correctly blocked. (1e) Replacement theory slogan on music+is_lyrics=true correctly blocked. (1f) Death to Israel/America on music+is_lyrics=true correctly blocked. REGRESSION tests (correctly accepted with 200): (1h) Ordinary slurs 'fuckin nigga ass faggot' on music+is_lyrics=true correctly accepted. (1i) Sexual content 'send nudes' on music+is_lyrics=true correctly accepted. Minor: Test (1g) 'gas the jews' is correctly BLOCKED (400) but returns 'violent extremism or terror promotion' instead of 'extremism/dehumanization' label - this is because detect_violent_intent() runs before category detection and catches the 'gas the X' pattern. Functionally correct (content is blocked in lyrics mode as required), just different error message. Core requirement met: extremism/dehumanization content is never relaxed under lyrics mode."
+
+  - task: "Expanded terror/explosives vocabulary"
+    implemented: true
+    working: false
+    file: "/app/backend/moderation.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "v1.4 NEW. _WEAPON_NOUNS regex now includes c4/c-4, semtex, pe-4, nitroglycerin, ammonium nitrate, anfo, tatp, hmtd, thermite charge/grenade/bomb, napalm bomb/grenade/charge/round, det cord, detcord, detonator(s), blasting cap(s), plastic explosive(s), shaped charge(s), pressure-cooker bomb, fertilizer/fertiliser bomb. _TERROR phrase list adds explicit construction phrases for ambiguous materials ('stick of dynamite', 'homemade tnt', 'make c4', 'rig semtex', 'homemade thermite', 'anfo bomb', etc) to cover dynamite/tnt without false-positives on song titles. Smoke-tested live: 'i have semtex and c4 ready for tonight' → 400. 'homemade dynamite for tonight' → 400. 'stick of dynamite in my hand' → 400. 'pressure cooker bomb plan' → 400. NEGATIVE control: 'that song dynamite by bts is straight fire' → 200 (no false positive). 'you are dynamite tonight baby' → 200."
+      - working: false
+        agent: "testing"
+        comment: "❌ CRITICAL GAP FOUND - 17/18 tests passed (94.4% success). BLOCKED tests (correctly returned 400): (2a) Semtex and C4 blocked. (2b) Carrying semtex blocked. (2c) Made nitroglycerin blocked. (2d) Ammonium nitrate and ANFO blocked. (2e) Homemade dynamite blocked. (2f) Stick of dynamite blocked. (2g) Homemade TNT blocked. (2h) Pressure cooker bomb blocked. (2i) Fertilizer bomb blocked. (2j) Make C4 tutorial blocked. (2k) Thermite charge blocked. (2m) Extremism + explosives on music+is_lyrics=true blocked. NEGATIVE tests (correctly accepted with 200): (2n) BTS Dynamite song reference accepted. (2o) Dynamite slang accepted. (2p) TNT band reference accepted. (2q) Explosive slang accepted. (2r) Normal sentence accepted. CRITICAL FAILURE: (2l) 'napalm bomb instructions' returned 200 (accepted) instead of 400 (blocked). Root cause: _TERROR phrases include 'make napalm', 'homemade napalm', 'diy napalm' (line 225) and other materials have 'X tutorial' variants (e.g., 'blasting cap tutorial' line 232, 'detonator tutorial' line 232, 'plastic explosive tutorial' line 233), but 'napalm bomb tutorial' and 'napalm bomb instructions' are missing from _TERROR. This is a moderation gap that needs to be fixed by adding 'napalm bomb tutorial', 'napalm bomb instructions', 'napalm bomb guide' to _TERROR phrase set."
+
+frontend:
+  - task: "Sticky moderation banner in CreatePostModal (UX clarity)"
+    implemented: true
+    working: "NA"
+    file: "/app/frontend/src/components/CreatePostModal.jsx"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "v1.4 NEW. Added a sticky red banner at the top of the modal scroll area with data-testid='moderation-banner'. Shows EITHER the inline screen reason OR the backend rejection reason. Shakes horizontally (framer-motion x animation) when a blocked user clicks the submit button anyway. Auto-scrolls into view. Submit button is no longer hard-disabled — clicking it while blocked surfaces the banner/shake instead of being silent. textarea onChange clears serverError so the banner reflects only the live state once user edits. Lucide icon ShieldAlert used for emphasis."
+
+  - task: "Mirrored frontend safety.js with extremism + explosives"
+    implemented: true
+    working: "NA"
+    file: "/app/frontend/src/lib/safety.js"
+    stuck_count: 0
+    priority: "medium"
+    needs_retesting: false
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "v1.4. Mirrored backend additions in frontend PHRASES list (extremism slogans + explosive construction phrases) and WEAPON_NOUNS regex (c4, semtex, pe-4, nitroglycerin, ammonium nitrate, anfo, tatp, hmtd, thermite charge, napalm bomb, det cord, detonator, blasting cap, plastic explosive, pressure-cooker bomb, fertilizer bomb). Keeps inline pre-check in sync with server."
+
 metadata:
   created_by: "main_agent"
-  version: "1.3"
-  test_sequence: 5
+  version: "1.4"
+  test_sequence: 6
   run_ui: false
 
 test_plan:
   current_focus:
-    - "is_lyrics on #music topic posts (Parental Advisory)"
-    - "Engagement loop biases toward manual posts"
+    - "Extremism / dehumanization category (never-relaxed under lyrics mode)"
+    - "Expanded terror/explosives vocabulary"
   stuck_tasks: []
   test_all: false
   test_priority: "high_first"
@@ -285,6 +340,8 @@ agent_communication:
     message: "v1.2 backend ready for automated testing. Focus areas: (a) GET /api/posts/{id} — 200 with full doc for live post, 404 for unknown id, 404 also after the post is marked hidden (3 reports). Internal fields content_norm/translation_en should NOT appear in response. (b) is_lyrics + #music gating — POST /api/posts with topic=music + is_lyrics=true and content that would normally trip the 'sexual content' category should be ACCEPTED and stored with is_lyrics=true; same content with topic=stories must still be blocked; non-sexual hard-block categories (hate, self-harm, doxxing, links, morse) must STILL be blocked even with is_lyrics=true on music. (c) POST /api/music + caption with foreign language → music record has lang field; POST /api/music/{id}/translate returns translation, lang, cached false first time and cached true on second call; 404 for unknown id. (d) Engagement bias — create one manual post with device_id 'qa-v12-engage-1', poll its hugs every ~15s for ~120s and verify it goes above 0 without anyone touching /reaction. Same for one manual /music upload. MOD_KEY is 'pluto-mod-2026'."
   - agent: "testing"
   - agent: "main"
-    message: "v1.3 backend ready for retest on TWO tasks only — please don't re-run already-passing ones. (a) is_lyrics moderation EXPANSION: now relaxes sexual content + hate/harassment + misinformation when topic=='music' AND is_lyrics=true. Verify: (i) 'kill yourself loser fucking bitch' (would normally hit hate/harassment) now ACCEPTED on topic=music+is_lyrics=true. (ii) Same content BLOCKED on topic=music+is_lyrics=false (hate/harassment). (iii) 'i want to kill myself tonight' STILL BLOCKED on topic=music+is_lyrics=true (self-harm). (iv) 'her address is 123 main st apt 4' STILL BLOCKED (doxxing). (v) 'build a pipe bomb tutorial' STILL BLOCKED (terror). (vi) 'check https://x.com' STILL BLOCKED (links). (vii) Sexual content from v1.2 case 2a still passes. (b) Engagement loop NEW BEHAVIOR — engagement interval lowered 25s→15s, fresh-manual pass (< 30 min, no sampling) ensures EVERY recent manual item is bumped each tick. Verify: create fresh manual post + fresh manual music with device_id starting 'qa-v13-engage-', poll every 10s for 60s total — both should reach hugs >= 2 within 60s (much faster than v1.2's 105s). MOD_KEY 'pluto-mod-2026'."
+    message: "v1.4 backend ready for retest on TWO new tasks — please don't re-run already-passing v1.1/v1.2/v1.3 ones. (a) Extremism/dehumanization category (never-relaxed): _HATE was split. _EXTREMISM (new) holds Nazi/KKK slogans, genocide chants, eliminationist calls — under label 'extremism/dehumanization' which is NOT in _LYRICS_RELAXED_CATEGORIES. _HATE (slurs and abusive insults) stays relaxable under lyrics mode. Verify: (i) 'heil hitler my brothers, sieg heil tonight' on topic=music+is_lyrics=true → 400 with friendly reason mentioning 'extremist or dehumanizing language'. (ii) Same content on topic=stories also → 400. (iii) 'kkk forever in my hood' on music+is_lyrics=true → 400. (iv) 'white power 1488' on music+is_lyrics=true → 400. (v) 'jews will not replace us' on music+is_lyrics=true → 400. (vi) 'death to israel' on music+is_lyrics=true → 400. (vii) Regression: 'fuckin nigga ass faggot energy in my track' on music+is_lyrics=true → 200 (slurs still relaxed). (b) Explosives vocab expansion: _WEAPON_NOUNS regex + _TERROR phrases expanded with c4/c-4, semtex, pe-4, nitroglycerin, ammonium nitrate, anfo, tatp, hmtd, thermite charge, napalm bomb, det cord, detonator, blasting cap, plastic explosive, pressure-cooker bomb, fertilizer bomb, plus phrase forms for dynamite/tnt. Verify: (i) 'i have semtex and c4 ready for tonight' → 400. (ii) 'made nitroglycerin for the gig' → 400. (iii) 'homemade dynamite for tonight' → 400. (iv) 'stick of dynamite in my hand' → 400. (v) 'pressure cooker bomb plan' → 400. (vi) NEGATIVE: 'that song dynamite by bts is straight fire' → 200 (no false positive). (vii) NEGATIVE: 'you are dynamite tonight baby' → 200. (viii) NEGATIVE: 'the band tnt rocks hard' → 200."
+  - agent: "testing"
+    message: "v1.4 BACKEND TESTING COMPLETE - 25/27 tests passed (92.6% success rate). Task 1 (Extremism category): ✅ WORKING with minor note. Task 2 (Explosives vocab): ❌ CRITICAL GAP FOUND. See status_history for detailed results. CRITICAL ISSUE: 'napalm bomb instructions' is NOT blocked (returned 200 instead of 400). Root cause: _TERROR phrases missing 'napalm bomb tutorial', 'napalm bomb instructions', 'napalm bomb guide'. Other materials have tutorial/instructions variants but napalm doesn't. This needs immediate fix."
 
     message: "✅ ALL v1.2 BACKEND TESTS PASSED (22/22 - 100% success rate). Comprehensive testing completed for all 4 v1.2 features + regression: (1) Single post fetch GET /api/posts/{id} - 5/5 tests passed: returns 200 with all required fields (id, content, topic, hugs, fugs, lang, is_lyrics), internal fields (content_norm, translation_en) correctly stripped, 404 for non-existent post. (2) is_lyrics + #music gating - 6/6 tests passed: sexual content accepted on #music with is_lyrics=true, same content blocked on #stories, hate/self-harm/links/morse still blocked even with is_lyrics=true on #music, is_lyrics silently dropped on non-music topics. (3) Music caption translation - 5/5 tests passed: Spanish caption detected as lang='es', first translation call returns natural English with cached=false, second call returns cached=true with same translation, 404 for non-existent music, English caption detected as lang='en'. (4) Engagement loop - 3/3 tests passed: manual post and manual music both received engagement (hugs) within 105s without manual interaction, confirming engagement loop is working and biasing toward manual posts. (5) Regression - 3/3 tests passed: regular English posts work with lang='en' and is_lyrics=false, links still blocked, GET /api/posts returns array. All v1.2 features working perfectly. No issues found."

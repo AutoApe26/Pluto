@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { X, ImagePlus, Send, Loader2, AlertTriangle } from "lucide-react";
+import { X, ImagePlus, Send, Loader2, AlertTriangle, ShieldAlert } from "lucide-react";
 import { toast } from "sonner";
 import { api } from "../lib/api";
 import { fileToDataUrl } from "../lib/format";
@@ -15,6 +15,15 @@ export const CreatePostModal = ({ open, onClose, topics, onCreated, defaultTopic
   const [image, setImage] = useState(null);
   const [isLyrics, setIsLyrics] = useState(false);
   const [busy, setBusy] = useState(false);
+  // Sticky moderation banner state — when the backend rejects a post we
+  // surface the *exact* server reason here so the user can't miss it.
+  // Cleared when they edit the textarea (they're addressing the issue).
+  const [serverError, setServerError] = useState("");
+  // Increments every time a blocked user clicks the disabled button —
+  // used to shake the warning banner so the rejection is unmissable.
+  const [shakeTick, setShakeTick] = useState(0);
+  const bannerRef = useRef();
+  const textareaRef = useRef();
   const fileRef = useRef();
 
   useEffect(() => {
@@ -24,6 +33,8 @@ export const CreatePostModal = ({ open, onClose, topics, onCreated, defaultTopic
       setImage(null);
       setIsLyrics(false);
       setTopic(defaultTopic || "rant");
+      setServerError("");
+      setShakeTick(0);
     }
   }, [open, defaultTopic]);
 
@@ -57,10 +68,16 @@ export const CreatePostModal = ({ open, onClose, topics, onCreated, defaultTopic
     }
     const screen = screenContent(content);
     if (!screen.ok) {
-      toast.error(screen.reason);
+      // Surface the block reason in the sticky banner + shake it so
+      // the user understands their post is NOT going through.
+      setServerError(screen.reason);
+      setShakeTick((n) => n + 1);
+      bannerRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+      toast.error("Post blocked — see the red banner above");
       return;
     }
     setBusy(true);
+    setServerError("");
     try {
       const post = await api.createPost({
         content,
@@ -73,7 +90,16 @@ export const CreatePostModal = ({ open, onClose, topics, onCreated, defaultTopic
       onCreated?.(post);
       onClose();
     } catch (e) {
-      toast.error(e.response?.data?.detail || "Failed to post");
+      // Show the *server* reason in the sticky banner — the toast alone
+      // is easy to miss on mobile. Also shake + scroll to make it obvious
+      // the post was NOT published.
+      const reason =
+        e.response?.data?.detail ||
+        "Failed to post. Please check your connection and try again.";
+      setServerError(reason);
+      setShakeTick((n) => n + 1);
+      bannerRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+      toast.error(reason);
     } finally {
       setBusy(false);
     }
@@ -85,6 +111,11 @@ export const CreatePostModal = ({ open, onClose, topics, onCreated, defaultTopic
   // issue immediately, before they even press Post.
   const screen = screenContent(content);
   const isUnsafe = !screen.ok && content.trim().length > 0;
+  // The sticky banner shows EITHER the inline-screen reason OR the last
+  // backend-server rejection reason. As soon as the user edits content
+  // the backend-server reason clears (they're addressing it).
+  const bannerReason = isUnsafe ? screen.reason : serverError;
+  const showBanner = !!bannerReason && (isUnsafe || !!serverError);
 
   return (
     <AnimatePresence>
@@ -132,6 +163,49 @@ export const CreatePostModal = ({ open, onClose, topics, onCreated, defaultTopic
 
             {/* Scrollable body */}
             <div className="flex-1 overflow-y-auto px-5 sm:px-7 pb-4">
+              {/* Sticky moderation banner. Shows the EXACT block reason
+                  (inline screen or backend rejection) so the user knows
+                  their post did NOT go through. Shakes on submit-while-
+                  blocked so it's impossible to miss. */}
+              <AnimatePresence>
+                {showBanner && (
+                  <motion.div
+                    ref={bannerRef}
+                    key={shakeTick}
+                    data-testid="moderation-banner"
+                    initial={{ opacity: 0, y: -8 }}
+                    animate={{
+                      opacity: 1,
+                      y: 0,
+                      x: shakeTick > 0 ? [0, -8, 8, -6, 6, -3, 3, 0] : 0,
+                    }}
+                    exit={{ opacity: 0, y: -8 }}
+                    transition={{
+                      opacity: { duration: 0.18 },
+                      x: { duration: 0.45 },
+                    }}
+                    className="mt-3 rounded-2xl border border-red-400/50 bg-gradient-to-br from-red-500/[0.18] to-red-600/[0.10] px-4 py-3 shadow-lg shadow-red-500/10"
+                  >
+                    <div className="flex items-start gap-3">
+                      <div className="shrink-0 mt-0.5 w-7 h-7 rounded-full bg-red-500/30 flex items-center justify-center">
+                        <ShieldAlert className="w-4 h-4 text-red-200" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="text-[11px] uppercase tracking-[0.18em] font-mono text-red-300/90 font-bold">
+                          Post blocked · not published
+                        </div>
+                        <div className="mt-1 text-[13px] leading-snug text-red-100">
+                          {bannerReason}
+                        </div>
+                        <div className="mt-1.5 text-[11px] text-red-200/70">
+                          Edit your message below to continue.
+                        </div>
+                      </div>
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+
               <div className="mt-3">
                 <label className="text-[10px] uppercase tracking-[0.2em] text-zinc-500 font-mono">
                   Topic
@@ -170,11 +244,15 @@ export const CreatePostModal = ({ open, onClose, topics, onCreated, defaultTopic
                 <div className="mt-2 relative">
                   <textarea
                     autoFocus
+                    ref={textareaRef}
                     placeholder="Say anything anonymously..."
                     value={content}
-                    onChange={(e) =>
-                      setContent(e.target.value.slice(0, MAX_LEN))
-                    }
+                    onChange={(e) => {
+                      setContent(e.target.value.slice(0, MAX_LEN));
+                      // User is addressing the issue — clear server error
+                      // so the banner reflects only the live inline check.
+                      if (serverError) setServerError("");
+                    }}
                     rows={5}
                     data-testid="create-post-textarea"
                     className="w-full bg-white/[0.03] border border-white/10 rounded-2xl px-4 py-3 pb-9 text-[15px] resize-none focus:border-purple-400/60 focus:bg-white/[0.05] focus:outline-none transition"
@@ -332,11 +410,16 @@ export const CreatePostModal = ({ open, onClose, topics, onCreated, defaultTopic
             <div className="shrink-0 border-t border-white/10 bg-[#0b0218]/85 backdrop-blur-xl px-5 sm:px-7 pt-3 pb-3">
               <button
                 onClick={submit}
-                disabled={busy || isUnsafe}
+                disabled={busy}
                 data-testid="create-post-submit"
+                aria-label={
+                  isUnsafe
+                    ? "Can't post — content blocked. Tap to see why."
+                    : "Post anonymously"
+                }
                 className={`w-full inline-flex items-center justify-center gap-2 rounded-full py-3.5 font-medium text-white transition shadow-lg disabled:opacity-50 ${
                   isUnsafe
-                    ? "bg-red-500/60 shadow-red-500/20 cursor-not-allowed"
+                    ? "bg-red-500/70 shadow-red-500/20 cursor-not-allowed hover:bg-red-500/80"
                     : "bg-gradient-to-r from-purple-500 via-fuchsia-500 to-pink-500 hover:opacity-95 shadow-purple-500/30"
                 }`}
               >

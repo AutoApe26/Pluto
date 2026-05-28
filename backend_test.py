@@ -1,15 +1,14 @@
 #!/usr/bin/env python3
 """
-Backend test suite for Pluto v1.3
-Tests the two v1.3 backend changes:
-1. is_lyrics moderation expansion (relaxed categories: sexual content, hate/harassment, misinformation)
-2. Aggressive engagement loop (15s interval, fresh manual pass)
+Backend test suite for Pluto v1.4
+Tests the two v1.4 backend changes:
+1. Extremism / dehumanization category (never-relaxed under lyrics mode)
+2. Expanded terror/explosives vocabulary
 """
 
 import requests
-import time
 import sys
-from typing import Dict, Any, Optional
+from typing import Dict, Any
 
 # Backend URL from frontend/.env
 BASE_URL = "https://safeguard-eval.preview.emergentagent.com/api"
@@ -50,326 +49,452 @@ def create_post(content: str, topic: str, device_id: str, is_lyrics: bool = Fals
     except Exception as e:
         return {"status": 0, "error": str(e)}
 
-def create_music(link_url: str, title: str, artist: str, caption: str, device_id: str) -> Dict[str, Any]:
-    """Create a music post and return response"""
-    payload = {
-        "link_url": link_url,
-        "title": title,
-        "artist": artist,
-        "caption": caption,
-        "device_id": device_id
-    }
-    try:
-        resp = requests.post(f"{BASE_URL}/music", json=payload, timeout=10)
-        return {"status": resp.status_code, "data": resp.json() if resp.status_code < 500 else None, "text": resp.text}
-    except Exception as e:
-        return {"status": 0, "error": str(e)}
-
-def get_post(post_id: str) -> Optional[Dict[str, Any]]:
-    """Fetch a post by ID"""
-    try:
-        resp = requests.get(f"{BASE_URL}/posts/{post_id}", timeout=10)
-        if resp.status_code == 200:
-            return resp.json()
-        return None
-    except Exception as e:
-        print(f"   Error fetching post: {e}")
-        return None
-
-def get_music(music_id: str) -> Optional[Dict[str, Any]]:
-    """Fetch a music post by ID"""
-    try:
-        resp = requests.get(f"{BASE_URL}/music", timeout=10)
-        if resp.status_code == 200:
-            all_music = resp.json()
-            for m in all_music:
-                if m.get("id") == music_id:
-                    return m
-        return None
-    except Exception as e:
-        print(f"   Error fetching music: {e}")
-        return None
-
 # ============================================================
-# TEST SUITE 1: is_lyrics moderation expansion (v1.3)
+# TEST SUITE 1: Extremism / dehumanization category (v1.4)
 # ============================================================
 
-def test_is_lyrics_expansion():
-    """Test v1.3 is_lyrics moderation expansion"""
+def test_extremism_category():
+    """Test v1.4 extremism/dehumanization category (never-relaxed)"""
     print("\n" + "="*80)
-    print("TEST SUITE 1: is_lyrics moderation expansion (v1.3)")
+    print("TEST SUITE 1: Extremism / dehumanization category (v1.4)")
     print("="*80)
     
-    # POSITIVE TESTS - must be ACCEPTED with is_lyrics:true on music topic
+    # BLOCKED TESTS - must return 400 with extremism/dehumanization reason
     
-    # Test 1a: hate/harassment content (NEW in v1.3)
-    print("\n[1a] Testing hate/harassment content with is_lyrics=true on #music...")
+    # Test 1a: Nazi slogan on music+is_lyrics=true (must be blocked)
+    print("\n[1a] Testing Nazi slogan 'heil hitler' on music+is_lyrics=true (must be blocked)...")
     resp = create_post(
-        content="kill yourself loser fucking bitch in my lyrics",
+        content="heil hitler my brothers, sieg heil tonight",
         topic="music",
-        device_id="qa-v13-lyr-a",
+        device_id="qa-v14-extremism-1a",
+        is_lyrics=True
+    )
+    detail_lower = resp.get("text", "").lower()
+    has_extremism_keyword = any(kw in detail_lower for kw in ["extremist", "dehumanizing", "nazi", "genocide"])
+    if resp["status"] == 400 and has_extremism_keyword:
+        log_test("1a: Nazi slogan blocked on music+is_lyrics=true", True,
+                f"Status: {resp['status']}, detail contains extremism keyword: {resp.get('text')[:100]}")
+    else:
+        log_test("1a: Nazi slogan blocked on music+is_lyrics=true", False,
+                f"Status: {resp['status']}, Expected 400 with extremism keyword, got: {resp.get('text')[:200]}")
+    
+    # Test 1b: Nazi slogan on stories (must be blocked)
+    print("\n[1b] Testing Nazi slogan 'heil hitler' on stories (must be blocked)...")
+    resp = create_post(
+        content="heil hitler my brothers, sieg heil tonight",
+        topic="stories",
+        device_id="qa-v14-extremism-1b",
+        is_lyrics=False
+    )
+    detail_lower = resp.get("text", "").lower()
+    has_extremism_keyword = any(kw in detail_lower for kw in ["extremist", "dehumanizing", "nazi", "genocide"])
+    if resp["status"] == 400 and has_extremism_keyword:
+        log_test("1b: Nazi slogan blocked on stories", True,
+                f"Status: {resp['status']}, detail contains extremism keyword: {resp.get('text')[:100]}")
+    else:
+        log_test("1b: Nazi slogan blocked on stories", False,
+                f"Status: {resp['status']}, Expected 400 with extremism keyword, got: {resp.get('text')[:200]}")
+    
+    # Test 1c: KKK slogan on music+is_lyrics=true (must be blocked)
+    print("\n[1c] Testing KKK slogan on music+is_lyrics=true (must be blocked)...")
+    resp = create_post(
+        content="kkk forever in my hood",
+        topic="music",
+        device_id="qa-v14-extremism-1c",
+        is_lyrics=True
+    )
+    detail_lower = resp.get("text", "").lower()
+    has_extremism_keyword = any(kw in detail_lower for kw in ["extremist", "dehumanizing", "nazi", "genocide"])
+    if resp["status"] == 400 and has_extremism_keyword:
+        log_test("1c: KKK slogan blocked on music+is_lyrics=true", True,
+                f"Status: {resp['status']}, detail contains extremism keyword: {resp.get('text')[:100]}")
+    else:
+        log_test("1c: KKK slogan blocked on music+is_lyrics=true", False,
+                f"Status: {resp['status']}, Expected 400 with extremism keyword, got: {resp.get('text')[:200]}")
+    
+    # Test 1d: White power slogan on music+is_lyrics=true (must be blocked)
+    print("\n[1d] Testing white power slogan on music+is_lyrics=true (must be blocked)...")
+    resp = create_post(
+        content="white power and 1488 baby",
+        topic="music",
+        device_id="qa-v14-extremism-1d",
+        is_lyrics=True
+    )
+    detail_lower = resp.get("text", "").lower()
+    has_extremism_keyword = any(kw in detail_lower for kw in ["extremist", "dehumanizing", "nazi", "genocide"])
+    if resp["status"] == 400 and has_extremism_keyword:
+        log_test("1d: White power slogan blocked on music+is_lyrics=true", True,
+                f"Status: {resp['status']}, detail contains extremism keyword: {resp.get('text')[:100]}")
+    else:
+        log_test("1d: White power slogan blocked on music+is_lyrics=true", False,
+                f"Status: {resp['status']}, Expected 400 with extremism keyword, got: {resp.get('text')[:200]}")
+    
+    # Test 1e: Replacement theory slogan on music+is_lyrics=true (must be blocked)
+    print("\n[1e] Testing replacement theory slogan on music+is_lyrics=true (must be blocked)...")
+    resp = create_post(
+        content="jews will not replace us tonight",
+        topic="music",
+        device_id="qa-v14-extremism-1e",
+        is_lyrics=True
+    )
+    detail_lower = resp.get("text", "").lower()
+    has_extremism_keyword = any(kw in detail_lower for kw in ["extremist", "dehumanizing", "nazi", "genocide"])
+    if resp["status"] == 400 and has_extremism_keyword:
+        log_test("1e: Replacement theory slogan blocked on music+is_lyrics=true", True,
+                f"Status: {resp['status']}, detail contains extremism keyword: {resp.get('text')[:100]}")
+    else:
+        log_test("1e: Replacement theory slogan blocked on music+is_lyrics=true", False,
+                f"Status: {resp['status']}, Expected 400 with extremism keyword, got: {resp.get('text')[:200]}")
+    
+    # Test 1f: Death to Israel/America on music+is_lyrics=true (must be blocked)
+    print("\n[1f] Testing 'death to israel/america' on music+is_lyrics=true (must be blocked)...")
+    resp = create_post(
+        content="death to israel and death to america",
+        topic="music",
+        device_id="qa-v14-extremism-1f",
+        is_lyrics=True
+    )
+    detail_lower = resp.get("text", "").lower()
+    has_extremism_keyword = any(kw in detail_lower for kw in ["extremist", "dehumanizing", "nazi", "genocide"])
+    if resp["status"] == 400 and has_extremism_keyword:
+        log_test("1f: Death to Israel/America blocked on music+is_lyrics=true", True,
+                f"Status: {resp['status']}, detail contains extremism keyword: {resp.get('text')[:100]}")
+    else:
+        log_test("1f: Death to Israel/America blocked on music+is_lyrics=true", False,
+                f"Status: {resp['status']}, Expected 400 with extremism keyword, got: {resp.get('text')[:200]}")
+    
+    # Test 1g: Gas the jews on music+is_lyrics=true (must be blocked)
+    print("\n[1g] Testing 'gas the jews' on music+is_lyrics=true (must be blocked)...")
+    resp = create_post(
+        content="gas the jews tonight in my song",
+        topic="music",
+        device_id="qa-v14-extremism-1g",
+        is_lyrics=True
+    )
+    detail_lower = resp.get("text", "").lower()
+    has_extremism_keyword = any(kw in detail_lower for kw in ["extremist", "dehumanizing", "nazi", "genocide"])
+    if resp["status"] == 400 and has_extremism_keyword:
+        log_test("1g: Gas the jews blocked on music+is_lyrics=true", True,
+                f"Status: {resp['status']}, detail contains extremism keyword: {resp.get('text')[:100]}")
+    else:
+        log_test("1g: Gas the jews blocked on music+is_lyrics=true", False,
+                f"Status: {resp['status']}, Expected 400 with extremism keyword, got: {resp.get('text')[:200]}")
+    
+    # REGRESSION TESTS - ordinary slurs/profanity should STILL be relaxed
+    
+    # Test 1h: Ordinary slurs on music+is_lyrics=true (must be ACCEPTED)
+    print("\n[1h] Testing ordinary slurs on music+is_lyrics=true (regression - must be accepted)...")
+    resp = create_post(
+        content="fuckin nigga ass faggot energy in my track",
+        topic="music",
+        device_id="qa-v14-extremism-1h",
         is_lyrics=True
     )
     if resp["status"] in [200, 201] and resp.get("data") and resp["data"].get("is_lyrics") == True:
-        log_test("1a: hate/harassment accepted with is_lyrics on #music", True, 
+        log_test("1h: Ordinary slurs accepted on music+is_lyrics=true (regression)", True,
                 f"Status: {resp['status']}, is_lyrics: {resp['data'].get('is_lyrics')}")
     else:
-        log_test("1a: hate/harassment accepted with is_lyrics on #music", False,
-                f"Status: {resp['status']}, Expected 200/201 with is_lyrics=true, got: {resp.get('data') or resp.get('text')}")
+        log_test("1h: Ordinary slurs accepted on music+is_lyrics=true (regression)", False,
+                f"Status: {resp['status']}, Expected 200/201 with is_lyrics=true, got: {resp.get('data') or resp.get('text')[:200]}")
     
-    # Test 1b: misinformation content (NEW in v1.3)
-    print("\n[1b] Testing misinformation content with is_lyrics=true on #music...")
-    resp = create_post(
-        content="vaccines cause autism according to my song",
-        topic="music",
-        device_id="qa-v13-lyr-b",
-        is_lyrics=True
-    )
-    if resp["status"] in [200, 201] and resp.get("data") and resp["data"].get("is_lyrics") == True:
-        log_test("1b: misinformation accepted with is_lyrics on #music", True,
-                f"Status: {resp['status']}, is_lyrics: {resp['data'].get('is_lyrics')}")
-    else:
-        log_test("1b: misinformation accepted with is_lyrics on #music", False,
-                f"Status: {resp['status']}, Expected 200/201 with is_lyrics=true, got: {resp.get('data') or resp.get('text')}")
-    
-    # Test 1c: sexual content (regression from v1.2)
-    print("\n[1c] Testing sexual content with is_lyrics=true on #music (regression)...")
+    # Test 1i: Sexual content on music+is_lyrics=true (must be ACCEPTED)
+    print("\n[1i] Testing sexual content on music+is_lyrics=true (regression - must be accepted)...")
     resp = create_post(
         content="send nudes to me tonight baby",
         topic="music",
-        device_id="qa-v13-lyr-c",
+        device_id="qa-v14-extremism-1i",
         is_lyrics=True
     )
     if resp["status"] in [200, 201] and resp.get("data") and resp["data"].get("is_lyrics") == True:
-        log_test("1c: sexual content accepted with is_lyrics on #music (regression)", True,
+        log_test("1i: Sexual content accepted on music+is_lyrics=true (regression)", True,
                 f"Status: {resp['status']}, is_lyrics: {resp['data'].get('is_lyrics')}")
     else:
-        log_test("1c: sexual content accepted with is_lyrics on #music (regression)", False,
-                f"Status: {resp['status']}, Expected 200/201 with is_lyrics=true, got: {resp.get('data') or resp.get('text')}")
-    
-    # NEGATIVE TESTS - must STILL be BLOCKED even with is_lyrics:true
-    
-    # Test 1d: self-harm (must be blocked)
-    print("\n[1d] Testing self-harm content with is_lyrics=true on #music (must be blocked)...")
-    resp = create_post(
-        content="i want to kill myself tonight please",
-        topic="music",
-        device_id="qa-v13-lyr-d",
-        is_lyrics=True
-    )
-    if resp["status"] == 400 and "self-harm" in resp.get("text", "").lower():
-        log_test("1d: self-harm blocked with is_lyrics on #music", True,
-                f"Status: {resp['status']}, correctly blocked with self-harm")
-    else:
-        log_test("1d: self-harm blocked with is_lyrics on #music", False,
-                f"Status: {resp['status']}, Expected 400 with self-harm, got: {resp.get('text')}")
-    
-    # Test 1e: doxxing (must be blocked)
-    print("\n[1e] Testing doxxing content with is_lyrics=true on #music (must be blocked)...")
-    resp = create_post(
-        content="her address is 123 main st apt 4 please come",
-        topic="music",
-        device_id="qa-v13-lyr-e",
-        is_lyrics=True
-    )
-    if resp["status"] == 400 and "doxxing" in resp.get("text", "").lower():
-        log_test("1e: doxxing blocked with is_lyrics on #music", True,
-                f"Status: {resp['status']}, correctly blocked with doxxing")
-    else:
-        log_test("1e: doxxing blocked with is_lyrics on #music", False,
-                f"Status: {resp['status']}, Expected 400 with doxxing, got: {resp.get('text')}")
-    
-    # Test 1f: terror (must be blocked)
-    print("\n[1f] Testing terror content with is_lyrics=true on #music (must be blocked)...")
-    resp = create_post(
-        content="build a pipe bomb tutorial how to make one",
-        topic="music",
-        device_id="qa-v13-lyr-f",
-        is_lyrics=True
-    )
-    if resp["status"] == 400 and "terror" in resp.get("text", "").lower():
-        log_test("1f: terror blocked with is_lyrics on #music", True,
-                f"Status: {resp['status']}, correctly blocked with terror")
-    else:
-        log_test("1f: terror blocked with is_lyrics on #music", False,
-                f"Status: {resp['status']}, Expected 400 with terror, got: {resp.get('text')}")
-    
-    # Test 1g: scams (must be blocked)
-    print("\n[1g] Testing scams content with is_lyrics=true on #music (must be blocked)...")
-    resp = create_post(
-        content="send your seed phrase here for free money",
-        topic="music",
-        device_id="qa-v13-lyr-g",
-        is_lyrics=True
-    )
-    if resp["status"] == 400 and "scam" in resp.get("text", "").lower():
-        log_test("1g: scams blocked with is_lyrics on #music", True,
-                f"Status: {resp['status']}, correctly blocked with scams")
-    else:
-        log_test("1g: scams blocked with is_lyrics on #music", False,
-                f"Status: {resp['status']}, Expected 400 with scams, got: {resp.get('text')}")
-    
-    # Test 1h: links (must be blocked)
-    print("\n[1h] Testing links with is_lyrics=true on #music (must be blocked)...")
-    resp = create_post(
-        content="check https://malicious.com out",
-        topic="music",
-        device_id="qa-v13-lyr-h",
-        is_lyrics=True
-    )
-    if resp["status"] == 400 and "link" in resp.get("text", "").lower():
-        log_test("1h: links blocked with is_lyrics on #music", True,
-                f"Status: {resp['status']}, correctly blocked with links")
-    else:
-        log_test("1h: links blocked with is_lyrics on #music", False,
-                f"Status: {resp['status']}, Expected 400 with links, got: {resp.get('text')}")
-    
-    # Test 1i: morse code (must be blocked)
-    print("\n[1i] Testing morse code with is_lyrics=true on #music (must be blocked)...")
-    resp = create_post(
-        content="... --- ... hello world morse",
-        topic="music",
-        device_id="qa-v13-lyr-i",
-        is_lyrics=True
-    )
-    if resp["status"] == 400 and "morse" in resp.get("text", "").lower():
-        log_test("1i: morse code blocked with is_lyrics on #music", True,
-                f"Status: {resp['status']}, correctly blocked with morse")
-    else:
-        log_test("1i: morse code blocked with is_lyrics on #music", False,
-                f"Status: {resp['status']}, Expected 400 with morse, got: {resp.get('text')}")
-    
-    # Test 1j: non-music topic must still block hate even with is_lyrics flag
-    print("\n[1j] Testing hate/harassment on non-music topic with is_lyrics=true (must be blocked)...")
-    resp = create_post(
-        content="kill yourself loser fucking bitch",
-        topic="stories",
-        device_id="qa-v13-lyr-j",
-        is_lyrics=True
-    )
-    if resp["status"] == 400 and "hate" in resp.get("text", "").lower():
-        log_test("1j: hate/harassment blocked on non-music topic with is_lyrics", True,
-                f"Status: {resp['status']}, correctly blocked with hate/harassment")
-    else:
-        log_test("1j: hate/harassment blocked on non-music topic with is_lyrics", False,
-                f"Status: {resp['status']}, Expected 400 with hate/harassment, got: {resp.get('text')}")
+        log_test("1i: Sexual content accepted on music+is_lyrics=true (regression)", False,
+                f"Status: {resp['status']}, Expected 200/201 with is_lyrics=true, got: {resp.get('data') or resp.get('text')[:200]}")
 
 # ============================================================
-# TEST SUITE 2: Aggressive engagement loop (v1.3)
+# TEST SUITE 2: Expanded terror/explosives vocabulary (v1.4)
 # ============================================================
 
-def test_aggressive_engagement():
-    """Test v1.3 aggressive engagement loop"""
+def test_explosives_expansion():
+    """Test v1.4 expanded terror/explosives vocabulary"""
     print("\n" + "="*80)
-    print("TEST SUITE 2: Aggressive engagement loop (v1.3)")
+    print("TEST SUITE 2: Expanded terror/explosives vocabulary (v1.4)")
     print("="*80)
     
-    # Test 2a: Create fresh manual post
-    print("\n[2a] Creating fresh manual post...")
+    # BLOCKED TESTS - must return 400
+    
+    # Test 2a: Semtex and C4
+    print("\n[2a] Testing 'semtex and c4' (must be blocked)...")
     resp = create_post(
-        content="engagement v13 super fast test of the new fresh manual pass",
+        content="i have semtex and c4 ready for tonight",
         topic="stories",
-        device_id="qa-v13-engage-post-1",
+        device_id="qa-v14-explosives-2a",
         is_lyrics=False
     )
+    if resp["status"] == 400:
+        log_test("2a: Semtex and C4 blocked", True,
+                f"Status: {resp['status']}, detail: {resp.get('text')[:100]}")
+    else:
+        log_test("2a: Semtex and C4 blocked", False,
+                f"Status: {resp['status']}, Expected 400, got: {resp.get('text')[:200]}")
     
-    if resp["status"] not in [200, 201] or not resp.get("data"):
-        log_test("2a: create fresh manual post", False,
-                f"Failed to create post. Status: {resp['status']}, Response: {resp.get('text')}")
-        return
-    
-    post_id = resp["data"]["id"]
-    initial_hugs = resp["data"].get("hugs", 0)
-    initial_fugs = resp["data"].get("fugs", 0)
-    log_test("2a: create fresh manual post", True,
-            f"Post ID: {post_id}, initial hugs: {initial_hugs}, fugs: {initial_fugs}")
-    
-    # Test 2b: Create fresh manual music upload
-    print("\n[2b] Creating fresh manual music upload...")
-    resp = create_music(
-        link_url="https://www.youtube.com/watch?v=9bZkp7q19f0",
-        title="Test",
-        artist="A",
-        caption="",
-        device_id="qa-v13-engage-music-1"
+    # Test 2b: Carrying semtex
+    print("\n[2b] Testing 'carrying semtex' (must be blocked)...")
+    resp = create_post(
+        content="carrying semtex tonight to the show",
+        topic="stories",
+        device_id="qa-v14-explosives-2b",
+        is_lyrics=False
     )
-    
-    if resp["status"] not in [200, 201] or not resp.get("data"):
-        log_test("2b: create fresh manual music", False,
-                f"Failed to create music. Status: {resp['status']}, Response: {resp.get('text')}")
-        return
-    
-    music_id = resp["data"]["id"]
-    music_initial_hugs = resp["data"].get("hugs", 0)
-    music_initial_fugs = resp["data"].get("fugs", 0)
-    log_test("2b: create fresh manual music", True,
-            f"Music ID: {music_id}, initial hugs: {music_initial_hugs}, fugs: {music_initial_fugs}")
-    
-    # Test 2c: Poll both for 60 seconds
-    print("\n[2c] Polling both post and music every 10s for 60s total...")
-    print("   Waiting 10s before first poll...")
-    time.sleep(10)
-    
-    post_engagement_history = []
-    music_engagement_history = []
-    
-    for i in range(6):  # 6 polls over 60 seconds
-        elapsed = (i + 1) * 10
-        print(f"\n   Poll {i+1} at {elapsed}s:")
-        
-        # Poll post
-        post_data = get_post(post_id)
-        if post_data:
-            post_hugs = post_data.get("hugs", 0)
-            post_fugs = post_data.get("fugs", 0)
-            post_total = post_hugs + post_fugs
-            post_engagement_history.append(post_total)
-            print(f"      Post {post_id} → hugs: {post_hugs}, fugs: {post_fugs}, total: {post_total}")
-        else:
-            print(f"      Post {post_id} → ERROR: could not fetch")
-            post_engagement_history.append(0)
-        
-        # Poll music
-        music_data = get_music(music_id)
-        if music_data:
-            music_hugs = music_data.get("hugs", 0)
-            music_fugs = music_data.get("fugs", 0)
-            music_total = music_hugs + music_fugs
-            music_engagement_history.append(music_total)
-            print(f"      Music {music_id} → hugs: {music_hugs}, fugs: {music_fugs}, total: {music_total}")
-        else:
-            print(f"      Music {music_id} → ERROR: could not fetch")
-            music_engagement_history.append(0)
-        
-        if i < 5:  # Don't sleep after last poll
-            time.sleep(10)
-    
-    # Evaluate results
-    print("\n[2d] Evaluating engagement results...")
-    
-    post_final_engagement = post_engagement_history[-1] if post_engagement_history else 0
-    music_final_engagement = music_engagement_history[-1] if music_engagement_history else 0
-    
-    print(f"   Post engagement history: {post_engagement_history}")
-    print(f"   Music engagement history: {music_engagement_history}")
-    
-    # PASS criteria: both must have hugs + fugs combined >= 2 within 60s
-    post_passed = post_final_engagement >= 2
-    music_passed = music_final_engagement >= 2
-    
-    if post_passed:
-        log_test("2c: post engagement >= 2 within 60s", True,
-                f"Final engagement: {post_final_engagement} (>= 2)")
+    if resp["status"] == 400:
+        log_test("2b: Carrying semtex blocked", True,
+                f"Status: {resp['status']}, detail: {resp.get('text')[:100]}")
     else:
-        log_test("2c: post engagement >= 2 within 60s", False,
-                f"Final engagement: {post_final_engagement} (< 2). Expected >= 2 within 60s.")
+        log_test("2b: Carrying semtex blocked", False,
+                f"Status: {resp['status']}, Expected 400, got: {resp.get('text')[:200]}")
     
-    if music_passed:
-        log_test("2d: music engagement >= 2 within 60s", True,
-                f"Final engagement: {music_final_engagement} (>= 2)")
+    # Test 2c: Made nitroglycerin
+    print("\n[2c] Testing 'made nitroglycerin' (must be blocked)...")
+    resp = create_post(
+        content="made nitroglycerin for the gig",
+        topic="stories",
+        device_id="qa-v14-explosives-2c",
+        is_lyrics=False
+    )
+    if resp["status"] == 400:
+        log_test("2c: Made nitroglycerin blocked", True,
+                f"Status: {resp['status']}, detail: {resp.get('text')[:100]}")
     else:
-        log_test("2d: music engagement >= 2 within 60s", False,
-                f"Final engagement: {music_final_engagement} (< 2). Expected >= 2 within 60s.")
+        log_test("2c: Made nitroglycerin blocked", False,
+                f"Status: {resp['status']}, Expected 400, got: {resp.get('text')[:200]}")
+    
+    # Test 2d: Ammonium nitrate and ANFO
+    print("\n[2d] Testing 'ammonium nitrate and anfo' (must be blocked)...")
+    resp = create_post(
+        content="i got ammonium nitrate and anfo in my truck",
+        topic="stories",
+        device_id="qa-v14-explosives-2d",
+        is_lyrics=False
+    )
+    if resp["status"] == 400:
+        log_test("2d: Ammonium nitrate and ANFO blocked", True,
+                f"Status: {resp['status']}, detail: {resp.get('text')[:100]}")
+    else:
+        log_test("2d: Ammonium nitrate and ANFO blocked", False,
+                f"Status: {resp['status']}, Expected 400, got: {resp.get('text')[:200]}")
+    
+    # Test 2e: Homemade dynamite
+    print("\n[2e] Testing 'homemade dynamite' (must be blocked)...")
+    resp = create_post(
+        content="homemade dynamite for tonight",
+        topic="stories",
+        device_id="qa-v14-explosives-2e",
+        is_lyrics=False
+    )
+    if resp["status"] == 400:
+        log_test("2e: Homemade dynamite blocked", True,
+                f"Status: {resp['status']}, detail: {resp.get('text')[:100]}")
+    else:
+        log_test("2e: Homemade dynamite blocked", False,
+                f"Status: {resp['status']}, Expected 400, got: {resp.get('text')[:200]}")
+    
+    # Test 2f: Stick of dynamite
+    print("\n[2f] Testing 'stick of dynamite' (must be blocked)...")
+    resp = create_post(
+        content="stick of dynamite in my hand",
+        topic="stories",
+        device_id="qa-v14-explosives-2f",
+        is_lyrics=False
+    )
+    if resp["status"] == 400:
+        log_test("2f: Stick of dynamite blocked", True,
+                f"Status: {resp['status']}, detail: {resp.get('text')[:100]}")
+    else:
+        log_test("2f: Stick of dynamite blocked", False,
+                f"Status: {resp['status']}, Expected 400, got: {resp.get('text')[:200]}")
+    
+    # Test 2g: Homemade TNT
+    print("\n[2g] Testing 'homemade tnt' (must be blocked)...")
+    resp = create_post(
+        content="homemade tnt ready to go",
+        topic="stories",
+        device_id="qa-v14-explosives-2g",
+        is_lyrics=False
+    )
+    if resp["status"] == 400:
+        log_test("2g: Homemade TNT blocked", True,
+                f"Status: {resp['status']}, detail: {resp.get('text')[:100]}")
+    else:
+        log_test("2g: Homemade TNT blocked", False,
+                f"Status: {resp['status']}, Expected 400, got: {resp.get('text')[:200]}")
+    
+    # Test 2h: Pressure cooker bomb
+    print("\n[2h] Testing 'pressure cooker bomb' (must be blocked)...")
+    resp = create_post(
+        content="pressure cooker bomb plan",
+        topic="stories",
+        device_id="qa-v14-explosives-2h",
+        is_lyrics=False
+    )
+    if resp["status"] == 400:
+        log_test("2h: Pressure cooker bomb blocked", True,
+                f"Status: {resp['status']}, detail: {resp.get('text')[:100]}")
+    else:
+        log_test("2h: Pressure cooker bomb blocked", False,
+                f"Status: {resp['status']}, Expected 400, got: {resp.get('text')[:200]}")
+    
+    # Test 2i: Fertilizer bomb
+    print("\n[2i] Testing 'fertilizer bomb' (must be blocked)...")
+    resp = create_post(
+        content="fertilizer bomb tutorial",
+        topic="stories",
+        device_id="qa-v14-explosives-2i",
+        is_lyrics=False
+    )
+    if resp["status"] == 400:
+        log_test("2i: Fertilizer bomb blocked", True,
+                f"Status: {resp['status']}, detail: {resp.get('text')[:100]}")
+    else:
+        log_test("2i: Fertilizer bomb blocked", False,
+                f"Status: {resp['status']}, Expected 400, got: {resp.get('text')[:200]}")
+    
+    # Test 2j: Make C4 tutorial
+    print("\n[2j] Testing 'make c4 at home' (must be blocked)...")
+    resp = create_post(
+        content="make c4 at home tutorial",
+        topic="stories",
+        device_id="qa-v14-explosives-2j",
+        is_lyrics=False
+    )
+    if resp["status"] == 400:
+        log_test("2j: Make C4 tutorial blocked", True,
+                f"Status: {resp['status']}, detail: {resp.get('text')[:100]}")
+    else:
+        log_test("2j: Make C4 tutorial blocked", False,
+                f"Status: {resp['status']}, Expected 400, got: {resp.get('text')[:200]}")
+    
+    # Test 2k: Thermite charge
+    print("\n[2k] Testing 'thermite charge' (must be blocked)...")
+    resp = create_post(
+        content="thermite charge for the lock",
+        topic="stories",
+        device_id="qa-v14-explosives-2k",
+        is_lyrics=False
+    )
+    if resp["status"] == 400:
+        log_test("2k: Thermite charge blocked", True,
+                f"Status: {resp['status']}, detail: {resp.get('text')[:100]}")
+    else:
+        log_test("2k: Thermite charge blocked", False,
+                f"Status: {resp['status']}, Expected 400, got: {resp.get('text')[:200]}")
+    
+    # Test 2l: Napalm bomb instructions
+    print("\n[2l] Testing 'napalm bomb instructions' (must be blocked)...")
+    resp = create_post(
+        content="napalm bomb instructions",
+        topic="stories",
+        device_id="qa-v14-explosives-2l",
+        is_lyrics=False
+    )
+    if resp["status"] == 400:
+        log_test("2l: Napalm bomb instructions blocked", True,
+                f"Status: {resp['status']}, detail: {resp.get('text')[:100]}")
+    else:
+        log_test("2l: Napalm bomb instructions blocked", False,
+                f"Status: {resp['status']}, Expected 400, got: {resp.get('text')[:200]}")
+    
+    # Test 2m: Extremism + explosives on music+is_lyrics=true (both should block)
+    print("\n[2m] Testing extremism + explosives on music+is_lyrics=true (must be blocked)...")
+    resp = create_post(
+        content="heil hitler — got that c4 ready for tonight",
+        topic="music",
+        device_id="qa-v14-explosives-2m",
+        is_lyrics=True
+    )
+    if resp["status"] == 400:
+        log_test("2m: Extremism + explosives blocked on music+is_lyrics=true", True,
+                f"Status: {resp['status']}, detail: {resp.get('text')[:100]}")
+    else:
+        log_test("2m: Extremism + explosives blocked on music+is_lyrics=true", False,
+                f"Status: {resp['status']}, Expected 400, got: {resp.get('text')[:200]}")
+    
+    # NEGATIVE TESTS - must return 200 (no false positives)
+    
+    # Test 2n: BTS Dynamite song reference
+    print("\n[2n] Testing BTS Dynamite song reference (must be accepted)...")
+    resp = create_post(
+        content="that song dynamite by bts is straight fire today",
+        topic="music",
+        device_id="qa-v14-explosives-2n",
+        is_lyrics=False
+    )
+    if resp["status"] in [200, 201]:
+        log_test("2n: BTS Dynamite song reference accepted", True,
+                f"Status: {resp['status']}")
+    else:
+        log_test("2n: BTS Dynamite song reference accepted", False,
+                f"Status: {resp['status']}, Expected 200/201, got: {resp.get('text')[:200]}")
+    
+    # Test 2o: Dynamite as slang
+    print("\n[2o] Testing 'you are dynamite' slang (must be accepted)...")
+    resp = create_post(
+        content="you are dynamite tonight baby",
+        topic="music",
+        device_id="qa-v14-explosives-2o",
+        is_lyrics=False
+    )
+    if resp["status"] in [200, 201]:
+        log_test("2o: Dynamite slang accepted", True,
+                f"Status: {resp['status']}")
+    else:
+        log_test("2o: Dynamite slang accepted", False,
+                f"Status: {resp['status']}, Expected 200/201, got: {resp.get('text')[:200]}")
+    
+    # Test 2p: TNT band reference
+    print("\n[2p] Testing TNT band reference (must be accepted)...")
+    resp = create_post(
+        content="the band tnt rocks hard",
+        topic="music",
+        device_id="qa-v14-explosives-2p",
+        is_lyrics=False
+    )
+    if resp["status"] in [200, 201]:
+        log_test("2p: TNT band reference accepted", True,
+                f"Status: {resp['status']}")
+    else:
+        log_test("2p: TNT band reference accepted", False,
+                f"Status: {resp['status']}, Expected 200/201, got: {resp.get('text')[:200]}")
+    
+    # Test 2q: Explosive as positive slang
+    print("\n[2q] Testing 'explosive' as positive slang (must be accepted)...")
+    resp = create_post(
+        content="that gig was explosive in a good way",
+        topic="stories",
+        device_id="qa-v14-explosives-2q",
+        is_lyrics=False
+    )
+    if resp["status"] in [200, 201]:
+        log_test("2q: Explosive slang accepted", True,
+                f"Status: {resp['status']}")
+    else:
+        log_test("2q: Explosive slang accepted", False,
+                f"Status: {resp['status']}, Expected 200/201, got: {resp.get('text')[:200]}")
+    
+    # Test 2r: Normal sentence
+    print("\n[2r] Testing normal sentence (must be accepted)...")
+    resp = create_post(
+        content="this is a normal english sentence about my day",
+        topic="stories",
+        device_id="qa-v14-explosives-2r",
+        is_lyrics=False
+    )
+    if resp["status"] in [200, 201]:
+        log_test("2r: Normal sentence accepted", True,
+                f"Status: {resp['status']}")
+    else:
+        log_test("2r: Normal sentence accepted", False,
+                f"Status: {resp['status']}, Expected 200/201, got: {resp.get('text')[:200]}")
 
 # ============================================================
 # MAIN
@@ -377,14 +502,16 @@ def test_aggressive_engagement():
 
 def main():
     print("="*80)
-    print("PLUTO v1.3 BACKEND TEST SUITE")
+    print("PLUTO v1.4 BACKEND TEST SUITE")
     print("="*80)
     print(f"Backend URL: {BASE_URL}")
     print(f"MOD_KEY: {MOD_KEY}")
+    print("\nNOTE: Only testing v1.4 NEW features (extremism category + explosives vocab)")
+    print("      v1.1/v1.2/v1.3 tests are skipped (already verified)")
     
     # Run test suites
-    test_is_lyrics_expansion()
-    test_aggressive_engagement()
+    test_extremism_category()
+    test_explosives_expansion()
     
     # Print summary
     print("\n" + "="*80)
