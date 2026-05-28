@@ -91,6 +91,37 @@ const PHRASES = [
   "school shooting", "mass shooting plan",
 ];
 
+// CSAM-specific phrase list — checked BEFORE generic PHRASES so the user
+// gets the accurate zero-tolerance message rather than the generic
+// threat/hate message. Mirrors a subset of backend _MINORS_SEXUAL.
+const CSAM_PHRASES = [
+  // Direct CSAM acronyms / explicit phrases
+  "csam", "child sexual abuse material",
+  "kiddie porn", "kiddy porn", "kiddie sex", "kiddy sex",
+  "child porn", "child p0rn", "underage porn", "underage nude",
+  "loli", "lolicon", "shota", "shotacon",
+  "child rape", "kid rape", "minor rape",
+  "pedo content", "pedo material", "pedo videos", "pedo pics",
+  // CSAM-trafficker glorification
+  "i love epstein", "love epstein",
+  "epstein was right", "epstein did nothing wrong",
+  "free epstein", "epstein is my hero", "epstein was a hero",
+  "epstein was a legend", "team epstein", "respect epstein",
+  "i love epstien", "love epstien", "epstien was right",
+  "epstien did nothing wrong", "free epstien", "rip epstien",
+  "epstien is my hero", "i love eptsein", "love eptsein",
+  "i love epsteen", "love epsteen", "i love epstine", "love epstine",
+  "i love ghislaine maxwell", "free ghislaine", "free maxwell",
+  "ghislaine is innocent", "maxwell was right",
+  "i love jimmy savile", "savile did nothing wrong",
+  "i love jerry sandusky", "sandusky did nothing wrong",
+  "i love roman polanski", "polanski did nothing wrong",
+  // MAP / pedo self-identification glorification
+  "i am a map", "im a map", "proud map", "proud pedo",
+  "proud pedophile", "pedo pride", "map pride", "pedo rights",
+  "map rights", "maps are valid",
+];
+
 // Cheap normalizer that mirrors backend's `_collapse` semantics enough
 // for the unambiguous phrases above. Lowercase + collapse whitespace.
 const normalize = (text) => (text || "").toLowerCase().replace(/\s+/g, " ").trim();
@@ -307,12 +338,19 @@ const ARTICLE =
   "(?:(?:a|an|the|some|any|my|all|every|those|these|young|little|" +
   "small|tiny|innocent|cute|hot|pretty|fresh|brand[\\s-]new)\\s+){0,5}";
 
+// Optional preposition between verb and minor referent — catches "rape TO
+// kids", "fuck WITH children", "sex AT minors" where the user inserts an
+// erroneous preposition. Mirrors backend _ABUSE_PREP.
+const ABUSE_PREP =
+  "(?:\\s+(?:to|with|on|at|of|into|onto|toward(?:s)?|against|" +
+  "upon|over|around|near|among))?";
+
 const MINOR_ABUSE_DIRECT_RE = new RegExp(
-  `\\b${ABUSE_VERBS}\\s+${ARTICLE}${MINOR_REF}\\b`,
+  `\\b${ABUSE_VERBS}${ABUSE_PREP}\\s+${ARTICLE}${MINOR_REF}\\b`,
   "i"
 );
 const MINOR_ABUSE_DESIRE_RE = new RegExp(
-  `\\b${DESIRE}${ABUSE_VERBS}\\s+${ARTICLE}${MINOR_REF}\\b`,
+  `\\b${DESIRE}${ABUSE_VERBS}${ABUSE_PREP}\\s+${ARTICLE}${MINOR_REF}\\b`,
   "i"
 );
 const MINOR_ABUSE_ATTRACT_RE = new RegExp(
@@ -365,7 +403,19 @@ export const screenContent = (text) => {
       match: "minor-sexual-abuse",
     };
   }
-  // 2) Phrase list (high-signal verbatim)
+  // 1b) CSAM-specific phrase list (kiddie porn, Epstein-glorification,
+  //     pedo-pride etc.) — also surfaces the zero-tolerance message.
+  for (const phrase of CSAM_PHRASES) {
+    if (norm.includes(phrase)) {
+      return {
+        ok: false,
+        reason:
+          "This post was blocked for sexual content involving minors (child sexual abuse material). This is a zero-tolerance violation.",
+        match: phrase,
+      };
+    }
+  }
+  // 2) Generic phrase list (high-signal threats/hate/abuse verbatim)
   for (const phrase of PHRASES) {
     if (norm.includes(phrase)) {
       return {

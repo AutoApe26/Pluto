@@ -215,6 +215,38 @@ _MINORS_SEXUAL = {
     "child rape", "kid rape", "minor rape",
     "pedo content", "pedo material", "pedo videos", "pedo pics",
     "csam", "csa material", "child sexual abuse material",
+    # CSAM-trafficker glorification — convicted/charged child-sex offenders.
+    # We do NOT block mere mention (people legitimately discuss the cases,
+    # report news, criticize); we block ADULATORY framings only. Common
+    # codes used by online CSAM communities to signal allegiance are
+    # included verbatim.
+    "i love epstein", "love epstein", "epstein was right",
+    "epstein did nothing wrong", "epstein didnt do nothing wrong",
+    "free epstein", "free jeffrey epstein",
+    "epstein is my hero", "epstein was a hero", "epstein for life",
+    "rip epstein", "miss you epstein", "miss epstein",
+    "epstein was a king", "epstein was a legend", "epstein the goat",
+    "team epstein", "respect epstein", "all hail epstein",
+    "epstein style", "do an epstein", "go epstein on",
+    # Common misspellings of Epstein
+    "i love epstien", "love epstien", "epstien was right",
+    "epstien did nothing wrong", "free epstien", "rip epstien",
+    "epstien is my hero", "epstien was a legend",
+    "i love eptsein", "love eptsein",
+    "i love epsteen", "love epsteen",
+    "i love epstine", "love epstine",
+    "i love ghislaine maxwell", "free ghislaine", "free maxwell",
+    "maxwell was right", "ghislaine was right", "ghislaine is innocent",
+    "i love jimmy savile", "savile was right", "savile did nothing wrong",
+    "i love jerry sandusky", "sandusky was right",
+    "sandusky did nothing wrong",
+    "i love roman polanski", "polanski did nothing wrong",
+    # MAPs / "minor-attracted person" self-identifying jargon — when used
+    # to claim legitimacy / pride, not when used in clinical/safeguarding
+    # discussion. The "pride" / "proud" / "i am" framings are the signal.
+    "i am a map", "im a map", "i'm a map", "proud map", "proud pedo",
+    "proud pedophile", "proud pedophile", "pedo pride", "map pride",
+    "pedo rights", "map rights", "we are valid maps", "maps are valid",
 }
 _PIRACY = {
     "piratebay", "the pirate bay", "thepiratebay", "1337x", "rarbg",
@@ -775,9 +807,18 @@ _SEXUAL_ABUSE_DESIRE = (
     r"(?:to\s+)?)"
 )
 
-# 1) Direct verb + minor object (with optional articles/adjectives in between)
+# 1) Direct verb + minor object (with optional preposition/articles/adjectives
+#    in between). The preposition slot catches typos / grammatically off
+#    constructions like "rape TO kids", "fuck WITH children", "sex AT
+#    minors" where the user inserts an erroneous preposition between the
+#    verb and the minor referent — the intent is identical and policy
+#    enforcement should not depend on grammatical correctness.
+_ABUSE_PREP = (
+    r"(?:\s+(?:to|with|on|at|of|into|onto|toward(?:s)?|against|"
+    r"upon|over|around|near|among))?"
+)
 _MINOR_ABUSE_DIRECT_RE = re.compile(
-    rf"\b{_SEXUAL_ABUSE_VERBS}\s+"
+    rf"\b{_SEXUAL_ABUSE_VERBS}{_ABUSE_PREP}\s+"
     rf"(?:(?:a|an|the|some|any|my|all|every|those|these|young|little|"
     rf"small|tiny|innocent|cute|hot|pretty|fresh|brand[\s-]new)\s+){{0,5}}"
     rf"{_MINOR_REFERENT}\b",
@@ -787,7 +828,7 @@ _MINOR_ABUSE_DIRECT_RE = re.compile(
 # 2) Desire framing + verb + minor object
 #    "i like to fuck minors", "i want to rape children", "i enjoy molesting kids"
 _MINOR_ABUSE_DESIRE_RE = re.compile(
-    rf"\b{_SEXUAL_ABUSE_DESIRE}{_SEXUAL_ABUSE_VERBS}\s+"
+    rf"\b{_SEXUAL_ABUSE_DESIRE}{_SEXUAL_ABUSE_VERBS}{_ABUSE_PREP}\s+"
     rf"(?:(?:a|an|the|some|any|my|all|every|those|these|young|little|"
     rf"small|tiny|innocent|cute|hot|pretty|fresh|brand[\s-]new)\s+){{0,5}}"
     rf"{_MINOR_REFERENT}\b",

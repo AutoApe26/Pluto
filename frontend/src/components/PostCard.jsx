@@ -281,7 +281,12 @@ export const PostCard = ({ post, index = 0 }) => {
           {post.sudo_name ? (
             <span className="text-zinc-300">{post.sudo_name}</span>
           ) : (
-            <>anon · {post.device_id.slice(-6)}</>
+            // Anonymous identifier intentionally shows just "anon" —
+            // the device_id hash (e.g. "20a855") used to be appended
+            // here but it leaked a stable per-device identifier to
+            // every other reader, which is contrary to Pluto's
+            // "drop a thought and disappear" promise.
+            <>anon</>
           )}
         </span>
         <ReportButton targetType="post" targetId={post.id} />

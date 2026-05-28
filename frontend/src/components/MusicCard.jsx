@@ -74,7 +74,11 @@ export const MusicCard = ({ track, index = 0 }) => {
 
   const cover =
     track.thumbnail || FALLBACK_COVERS[index % FALLBACK_COVERS.length];
-  const displayName = track.sudo_name || `anon · ${track.device_id?.slice(-6)}`;
+  // Display name shown publicly under the track. We deliberately do NOT
+  // include the device_id hash (e.g. "anon · 20a855") here — that suffix
+  // leaks a stable per-device identifier across posts which conflicts
+  // with Pluto's anonymous-by-default promise.
+  const displayName = track.sudo_name || "anon";
 
   const [busy, setBusy] = useState(false);
 

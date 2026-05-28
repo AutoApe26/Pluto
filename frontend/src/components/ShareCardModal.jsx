@@ -143,7 +143,9 @@ export const ShareCardModal = ({ open, onClose, post, track }) => {
 
   if (!item) return null;
   const color = TOPIC_COLORS[item.topic] || "#00F0FF";
-  const author = item.sudo_name || `anon · ${item.device_id?.slice(-6) || ""}`;
+  // Author label on the shareable card. Same anonymity rule as PostCard /
+  // MusicCard: no device_id hash suffix — just "anon" for unnamed posts.
+  const author = item.sudo_name || "anon";
   // Direct link to the specific post/track — anyone with this URL can open
   // it even if they aren't running the app yet.
   const shareUrl =

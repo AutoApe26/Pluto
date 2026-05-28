@@ -344,10 +344,34 @@ frontend:
         agent: "main"
         comment: "v1.5. Mirrored the backend CSAM detector in screenContent() — runs FIRST in the chain with a zero-tolerance message: 'This post was blocked for sexual content involving minors (child sexual abuse material). This is a zero-tolerance violation.' The frontend sticky banner surfaces this message immediately before the user even submits."
 
+  - task: "CSAM detector — preposition gap + trafficker-glorification phrases"
+    implemented: true
+    working: "NA"
+    file: "/app/backend/moderation.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "v1.6 NEW. User RCA showed 'i like to rape to kids and i love epstien' was still publishing — two distinct gaps. (a) The CSAM verb+minor regex required immediate adjacency (verb→article→minor) so 'rape TO kids' (verb→preposition→minor) was missed. Added _ABUSE_PREP optional slot that allows an erroneous preposition (to, with, on, at, of, into, onto, toward, against, upon, over, around, near, among) between verb and minor referent. (b) Glorification of convicted CSAM-traffickers wasn't covered. Added ~40 phrases for Epstein (including common misspellings: epstien, eptsein, epsteen, epstine), Ghislaine Maxwell, Jimmy Savile, Jerry Sandusky, Roman Polanski — adulatory framings only ('i love X', 'X did nothing wrong', 'free X', 'X is my hero', 'X was a legend'). Neutral/critical framings ('epstein was a criminal', 'i hate epstein', 'jeffrey epstein was arrested for trafficking minors') intentionally still publish — Pluto must allow news/critical discussion. Also added MAP / 'proud pedophile' self-id phrases."
+
+  - task: "Remove device_id hash from public anonymous identifier display"
+    implemented: true
+    working: "NA"
+    file: "/app/frontend/src/components/PostCard.jsx + MusicCard.jsx + ShareCardModal.jsx"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "v1.6. The 'anon · 20a855' suffix used to show the last 6 chars of device_id under every anonymous post — leaking a stable per-device identifier that let any reader correlate posts across the platform back to the same author. Conflicts with Pluto's anonymous-by-default promise. Removed in three render sites (PostCard.jsx:284, MusicCard.jsx:81, ShareCardModal.jsx:148) → all now render plain 'anon' when no sudo_name is set. Verified live via Playwright: 0 occurrences of 'anon · <hash>' pattern anywhere on /feed."
+
 metadata:
   created_by: "main_agent"
-  version: "1.5"
-  test_sequence: 8
+  version: "1.6"
+  test_sequence: 9
   run_ui: false
 
 test_plan:
