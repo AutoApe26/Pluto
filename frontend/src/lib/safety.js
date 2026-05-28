@@ -62,6 +62,8 @@ const PHRASES = [
   "make semtex", "homemade semtex", "rig semtex",
   "make thermite", "homemade thermite", "thermite charge",
   "make napalm", "homemade napalm",
+  "napalm bomb tutorial", "napalm bomb instructions", "napalm bomb guide",
+  "napalm tutorial", "napalm instructions", "napalm recipe",
   "make anfo", "homemade anfo", "anfo bomb",
   "make tatp", "homemade tatp",
   "make hmtd", "homemade hmtd",

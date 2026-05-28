@@ -223,6 +223,8 @@ _TERROR = {
     "make semtex", "homemade semtex", "rig semtex",
     "make thermite", "homemade thermite", "diy thermite", "thermite charge",
     "make napalm", "homemade napalm", "diy napalm",
+    "napalm bomb tutorial", "napalm bomb instructions", "napalm bomb guide",
+    "napalm tutorial", "napalm instructions", "napalm recipe",
     "make anfo", "homemade anfo", "anfo bomb", "anfo charge",
     "make tatp", "homemade tatp", "diy tatp",
     "make hmtd", "homemade hmtd", "diy hmtd",
